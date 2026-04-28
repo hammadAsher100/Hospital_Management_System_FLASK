@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+
+{% block title %}Nurse Dashboard — MediCore HMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-0"><i class="bi bi-hospital me-2 text-primary"></i>Dashboard</h1>
+                    <p class="text-muted mb-0">Welcome back, {{ current_user.full_name }}!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Ward</p>
+                            <h5 class="mb-0">{{ nurse.assigned_ward or 'Unassigned' }}</h5>
+                        </div>
+                        <div class="stat-icon bg-primary">
+                            <i class="bi bi-building text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Today's Schedule</p>
+                            <h3 class="mb-0">{{ today_appointments|length }}</h3>
+                        </div>
+                        <div class="stat-icon bg-info">
+                            <i class="bi bi-calendar-check text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Patients (30 days)</p>
+                            <h3 class="mb-0">{{ total_patients }}</h3>
+                        </div>
+                        <div class="stat-icon bg-success">
+                            <i class="bi bi-people text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Status</p>
+                            <h6 class="mb-0">
+                                <span class="badge bg-success">Available</span>
+                            </h6>
+                        </div>
+                        <div class="stat-icon bg-success">
+                            <i class="bi bi-check-circle text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Today's Tasks -->
+        <div class="col-lg-8">
+            <div class="card hms-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Today's Appointments</h5>
+                    <span class="badge bg-primary">{{ today_appointments|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if today_appointments %}
+                        <div class="appointment-list">
+                            {% for appt in today_appointments %}
+                            <div class="appointment-item">
+                                <div class="appointment-time">
+                                    <span class="time">{{ appt.appointment_time.strftime('%H:%M') }}</span>
+                                </div>
+                                <div class="appointment-info">
+                                    <h6 class="mb-1">{{ appt.patient.full_name }}</h6>
+                                    <p class="text-muted small mb-0">Dr. {{ appt.doctor.first_name }} {{ appt.doctor.last_name }}</p>
+                                    <p class="text-muted small mb-0">Room: TBD</p>
+                                </div>
+                                <div class="appointment-status">
+                                    <span class="badge bg-info">Pending</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-4 text-center text-muted">
+                            <i class="bi bi-calendar-x display-4 mb-2"></i>
+                            <p class="mb-0">No appointments scheduled for today</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Nurse Profile -->
+        <div class="col-lg-4">
+            <div class="card hms-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-person me-2"></i>Your Profile</h5>
+                </div>
+                <div class="card-body">
+                    <div class="profile-info text-center mb-4">
+                        <div class="profile-avatar mb-3">
+                            <i class="bi bi-person-circle display-1 text-primary"></i>
+                        </div>
+                        <h6>{{ nurse.full_name }}</h6>
+                        <p class="text-muted small mb-2">Registered Nurse</p>
+                    </div>
+                    
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Ward Assignment</label>
+                        <p class="mb-0">{{ nurse.assigned_ward or 'Unassigned' }}</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Email</label>
+                        <p class="mb-0">{{ nurse.email or 'Not provided' }}</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Phone</label>
+                        <p class="mb-0">{{ nurse.phone or 'Not provided' }}</p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <a href="{{ url_for('staff.nurse_schedule') }}" class="btn btn-sm btn-outline-primary w-100 mb-2">
+                        <i class="bi bi-calendar-event me-2"></i>View Schedule
+                    </a>
+                    <a href="{{ url_for('auth.profile') }}" class="btn btn-sm btn-outline-secondary w-100">
+                        <i class="bi bi-pencil me-2"></i>Edit Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 24px;
+    }
+
+    .appointment-list {
+        divide-y: 1px solid #e0e0e0;
+    }
+
+    .appointment-item {
+        display: flex;
+        gap: 15px;
+        padding: 15px;
+        border-bottom: 1px solid #f0f0f0;
+        align-items: center;
+    }
+
+    .appointment-item:last-child {
+        border-bottom: none;
+    }
+
+    .appointment-time {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 60px;
+    }
+
+    .appointment-time .time {
+        color: #666;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .appointment-info {
+        flex: 1;
+    }
+
+    .appointment-info h6 {
+        margin-bottom: 3px;
+        color: #333;
+    }
+
+    .appointment-status {
+        text-align: right;
+    }
+
+    .profile-avatar {
+        background: #f0f4ff;
+        padding: 20px;
+        border-radius: 12px;
+        display: inline-block;
+        width: 100%;
+    }
+
+    .info-item label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-item p {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}

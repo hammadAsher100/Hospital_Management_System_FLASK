@@ -15,6 +15,7 @@
 <body>
 
 {% if current_user.is_authenticated %}
+{% set endpoint = request.endpoint or '' %}
 <!-- Sidebar -->
 <nav class="sidebar" id="sidebar">
     <div class="sidebar-brand">
@@ -36,56 +37,117 @@
     </div>
 
     <ul class="sidebar-nav">
-        <li class="nav-section-label">Main</li>
-        <li>
-            <a href="{{ url_for('admin.dashboard') }}" class="nav-link {% if request.endpoint == 'admin.dashboard' %}active{% endif %}">
-                <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
-            </a>
-        </li>
-        <li>
-            <a href="{{ url_for('patients.list_patients') }}" class="nav-link {% if 'patients' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-people"></i><span>Patients</span>
-            </a>
-        </li>
-        <li>
-            <a href="{{ url_for('appointments.list_appointments') }}" class="nav-link {% if 'appointments' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-calendar-check"></i><span>Appointments</span>
-            </a>
-        </li>
+        {% if current_user.is_patient() %}
+            <li class="nav-section-label">Patient Portal</li>
+            <li>
+                <a href="{{ url_for('patients.patient_dashboard') }}" class="nav-link {% if endpoint == 'patients.patient_dashboard' %}active{% endif %}">
+                    <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('patients.book_appointment') }}" class="nav-link {% if endpoint == 'patients.book_appointment' %}active{% endif %}">
+                    <i class="bi bi-calendar-plus"></i><span>Book Appointment</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('patients.my_appointments') }}" class="nav-link {% if 'patients.my_appointments' in endpoint or 'patients.patient_view_appointment' in endpoint %}active{% endif %}">
+                    <i class="bi bi-calendar-check"></i><span>My Appointments</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('patients.patient_profile') }}" class="nav-link {% if endpoint == 'patients.patient_profile' %}active{% endif %}">
+                    <i class="bi bi-person-vcard"></i><span>My Profile</span>
+                </a>
+            </li>
+        {% elif current_user.is_doctor() %}
+            <li class="nav-section-label">Doctor Portal</li>
+            <li>
+                <a href="{{ url_for('staff.doctor_dashboard') }}" class="nav-link {% if endpoint == 'staff.doctor_dashboard' %}active{% endif %}">
+                    <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('staff.doctor_appointments') }}" class="nav-link {% if endpoint == 'staff.doctor_appointments' %}active{% endif %}">
+                    <i class="bi bi-calendar-week"></i><span>My Appointments</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('appointments.list_appointments') }}" class="nav-link {% if endpoint == 'appointments.list_appointments' %}active{% endif %}">
+                    <i class="bi bi-list-check"></i><span>All Appointments</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('pharmacy.list_prescriptions') }}" class="nav-link {% if 'pharmacy' in endpoint %}active{% endif %}">
+                    <i class="bi bi-capsule"></i><span>Prescriptions</span>
+                </a>
+            </li>
+        {% elif current_user.is_nurse() %}
+            <li class="nav-section-label">Nurse Portal</li>
+            <li>
+                <a href="{{ url_for('staff.nurse_dashboard') }}" class="nav-link {% if endpoint == 'staff.nurse_dashboard' %}active{% endif %}">
+                    <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('staff.nurse_schedule') }}" class="nav-link {% if endpoint == 'staff.nurse_schedule' %}active{% endif %}">
+                    <i class="bi bi-calendar2-week"></i><span>My Schedule</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('appointments.list_appointments') }}" class="nav-link {% if endpoint == 'appointments.list_appointments' %}active{% endif %}">
+                    <i class="bi bi-calendar-check"></i><span>Appointments</span>
+                </a>
+            </li>
+        {% else %}
+            <li class="nav-section-label">Main</li>
+            <li>
+                <a href="{{ url_for('admin.dashboard') }}" class="nav-link {% if endpoint == 'admin.dashboard' %}active{% endif %}">
+                    <i class="bi bi-grid-1x2"></i><span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('patients.list_patients') }}" class="nav-link {% if 'patients.' in endpoint %}active{% endif %}">
+                    <i class="bi bi-people"></i><span>Patients</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('appointments.list_appointments') }}" class="nav-link {% if 'appointments.' in endpoint %}active{% endif %}">
+                    <i class="bi bi-calendar-check"></i><span>Appointments</span>
+                </a>
+            </li>
 
-        {% if current_user.is_admin() or current_user.is_billing() %}
-        <li class="nav-section-label">Finance</li>
-        <li>
-            <a href="{{ url_for('billing.list_bills') }}" class="nav-link {% if 'billing' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-receipt"></i><span>Billing</span>
-            </a>
-        </li>
-        {% endif %}
+            <li class="nav-section-label">Finance</li>
+            <li>
+                <a href="{{ url_for('billing.list_bills') }}" class="nav-link {% if 'billing.' in endpoint %}active{% endif %}">
+                    <i class="bi bi-receipt"></i><span>Billing</span>
+                </a>
+            </li>
 
-        <li class="nav-section-label">Clinical</li>
-        <li>
-            <a href="{{ url_for('pharmacy.dashboard') }}" class="nav-link {% if 'pharmacy' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-capsule"></i><span>Pharmacy</span>
-            </a>
-        </li>
+            <li class="nav-section-label">Clinical</li>
+            <li>
+                <a href="{{ url_for('pharmacy.dashboard') }}" class="nav-link {% if 'pharmacy.' in endpoint %}active{% endif %}">
+                    <i class="bi bi-capsule"></i><span>Pharmacy</span>
+                </a>
+            </li>
 
-        {% if current_user.is_admin() %}
-        <li class="nav-section-label">Administration</li>
-        <li>
-            <a href="{{ url_for('staff.list_staff') }}" class="nav-link {% if 'staff' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-person-badge"></i><span>Staff</span>
-            </a>
-        </li>
-        <li>
-            <a href="{{ url_for('admin.report_revenue') }}" class="nav-link {% if 'report' in request.endpoint %}active{% endif %}">
-                <i class="bi bi-bar-chart-line"></i><span>Reports</span>
-            </a>
-        </li>
+            {% if current_user.is_admin() %}
+            <li class="nav-section-label">Administration</li>
+            <li>
+                <a href="{{ url_for('staff.list_staff') }}" class="nav-link {% if 'staff.' in endpoint %}active{% endif %}">
+                    <i class="bi bi-person-badge"></i><span>Staff</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('admin.report_revenue') }}" class="nav-link {% if 'admin.report_' in endpoint %}active{% endif %}">
+                    <i class="bi bi-bar-chart-line"></i><span>Reports</span>
+                </a>
+            </li>
+            {% endif %}
         {% endif %}
 
         <li class="nav-section-label">Account</li>
         <li>
-            <a href="{{ url_for('auth.profile') }}" class="nav-link {% if request.endpoint == 'auth.profile' %}active{% endif %}">
+            <a href="{{ url_for('auth.profile') }}" class="nav-link {% if endpoint == 'auth.profile' %}active{% endif %}">
                 <i class="bi bi-person-circle"></i><span>Profile</span>
             </a>
         </li>

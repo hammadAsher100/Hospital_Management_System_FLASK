@@ -10,7 +10,7 @@ class User(UserMixin, db.Model):
     user_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # admin, doctor, nurse, billing
+    role = db.Column(db.String(20), nullable=False)  # admin, doctor, nurse, billing, patient
     email = db.Column(db.String(100), unique=True, nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -20,6 +20,7 @@ class User(UserMixin, db.Model):
     # Relationships
     doctor_profile = db.relationship('Doctor', back_populates='user', uselist=False)
     nurse_profile = db.relationship('Nurse', back_populates='user', uselist=False)
+    patient_profile = db.relationship('Patient', back_populates='user', uselist=False)
 
     def get_id(self):
         return str(self.user_id)
@@ -46,6 +47,12 @@ class User(UserMixin, db.Model):
 
     def is_billing(self):
         return self.role == 'billing'
+
+    def is_patient(self):
+        return self.role == 'patient'
+
+    def is_staff(self):
+        return self.role in ['doctor', 'nurse', 'billing', 'admin']
 
     def update_last_login(self):
         self.last_login = datetime.utcnow()

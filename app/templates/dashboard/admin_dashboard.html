@@ -27,10 +27,10 @@
     </div>
     <div class="col-sm-6 col-xl-3">
         <div class="stat-card stat-card-purple">
-            <div class="stat-icon"><i class="bi bi-currency-rupee"></i></div>
+            <div class="stat-icon"><i class="bi bi-currency-dollar"></i></div>
             <div class="stat-content">
-                <div class="stat-number">{{ "%.0f"|format(monthly_revenue) }}</div>
-                <div class="stat-label">Monthly Revenue (Rs.)</div>
+                <div class="stat-number">${{ "{:,.0f}".format(monthly_revenue) }}</div>
+                <div class="stat-label">Monthly Revenue ($)</div>
             </div>
             <a href="{{ url_for('billing.list_bills') }}" class="stat-link">View bills <i class="bi bi-arrow-right"></i></a>
         </div>
@@ -179,7 +179,7 @@ new Chart(ctx, {
     data: {
         labels: revenueData.map(d => d.date),
         datasets: [{
-            label: 'Revenue (Rs.)',
+            label: 'Revenue ($)',
             data: revenueData.map(d => d.amount),
             backgroundColor: 'rgba(67, 120, 244, 0.15)',
             borderColor: '#4378f4',

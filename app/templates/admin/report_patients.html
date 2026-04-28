@@ -3,11 +3,36 @@
 {% block page_title %}Patient Reports{% endblock %}
 
 {% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <div>
+        <h3 class="mb-1">Patient Intelligence</h3>
+        <p class="text-muted mb-0">Demographics and registration trends</p>
+    </div>
+</div>
+
 <div class="row g-4 mb-4">
-    <div class="col-md-3">
-        <div class="stat-card stat-card-blue">
-            <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
-            <div class="stat-content"><div class="stat-number">{{ total }}</div><div class="stat-label">Total Patients</div></div>
+    <div class="col-md-4">
+        <div class="card hms-card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-2">Total Patients</div>
+                <h3 class="mb-0">{{ total }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card hms-card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-2">Known Blood Groups</div>
+                <h3 class="mb-0">{{ by_blood|length }}</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card hms-card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="text-muted small mb-2">Gender Categories</div>
+                <h3 class="mb-0">{{ by_gender|length }}</h3>
+            </div>
         </div>
     </div>
 </div>
@@ -16,13 +41,28 @@
     <div class="col-md-6">
         <div class="card hms-card">
             <div class="card-header hms-card-header"><i class="bi bi-pie-chart me-2"></i>Patients by Gender</div>
-            <div class="card-body"><canvas id="genderChart"></canvas></div>
+            <div class="card-body text-center">
+                <img src="data:image/png;base64,{{ gender_chart }}" alt="Patients by gender chart" class="img-fluid rounded">
+            </div>
         </div>
     </div>
     <div class="col-md-6">
         <div class="card hms-card">
             <div class="card-header hms-card-header"><i class="bi bi-droplet me-2"></i>Patients by Blood Group</div>
-            <div class="card-body"><canvas id="bloodChart"></canvas></div>
+            <div class="card-body text-center">
+                <img src="data:image/png;base64,{{ blood_chart }}" alt="Patients by blood group chart" class="img-fluid rounded">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mt-1">
+    <div class="col-12">
+        <div class="card hms-card">
+            <div class="card-header hms-card-header"><i class="bi bi-graph-up-arrow me-2"></i>Monthly Registrations</div>
+            <div class="card-body text-center">
+                <img src="data:image/png;base64,{{ monthly_chart }}" alt="Monthly patient registration chart" class="img-fluid rounded">
+            </div>
         </div>
     </div>
 </div>
@@ -32,29 +72,4 @@
     <a href="{{ url_for('admin.report_inventory') }}" class="btn btn-outline-primary me-2"><i class="bi bi-capsule me-1"></i>Inventory Report</a>
     <a href="{{ url_for('admin.report_appointments') }}" class="btn btn-outline-primary"><i class="bi bi-calendar me-1"></i>Appointments Report</a>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-const genderData = {{ by_gender | tojson }};
-const bloodData = {{ by_blood | tojson }};
-
-new Chart(document.getElementById('genderChart'), {
-    type: 'doughnut',
-    data: {
-        labels: genderData.map(d => d[0]),
-        datasets: [{ data: genderData.map(d => d[1]), backgroundColor: ['#4378f4','#f43f8c','#a78bfa'] }]
-    },
-    options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
-});
-
-new Chart(document.getElementById('bloodChart'), {
-    type: 'bar',
-    data: {
-        labels: bloodData.map(d => d[0] || 'Unknown'),
-        datasets: [{ label: 'Patients', data: bloodData.map(d => d[1]), backgroundColor: '#ef4444', borderRadius: 6 }]
-    },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-});
-</script>
 {% endblock %}

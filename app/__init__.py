@@ -68,6 +68,12 @@ def create_app(config_name='default'):
     @app.route('/')
     def index():
         if current_user.is_authenticated:
+            if current_user.is_patient():
+                return redirect(url_for('patients.patient_dashboard'))
+            if current_user.is_doctor():
+                return redirect(url_for('staff.doctor_dashboard'))
+            if current_user.is_nurse():
+                return redirect(url_for('staff.nurse_dashboard'))
             return redirect(url_for('admin.dashboard'))
         return redirect(url_for('auth.login'))
 

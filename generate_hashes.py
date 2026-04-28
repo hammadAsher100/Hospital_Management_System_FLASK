@@ -13,13 +13,16 @@ def hash_password(password: str) -> str:
 
 
 passwords = {
-    'admin':      'admin123',
-    'dr_ahmed':   'admin123',
-    'dr_fatima':  'admin123',
-    'dr_omar':    'admin123',
-    'nurse_sara': 'admin123',
-    'nurse_ali':  'admin123',
-    'billing1':   'admin123',
+    'admin':      'Admin@123',
+    'dr_ahmed':   'DrAhmed@123',
+    'dr_fatima':  'DrFatima@123',
+    'dr_omar':    'DrOmar@123',
+    'nurse_sara': 'NurseSara@123',
+    'nurse_ali':  'NurseAli@123',
+    'billing1':   'Billing@123',
+    'pt_mkhan':   'PtKhan@123',
+    'pt_ayesha':  'PtAyesha@123',
+    'pt_zainab':  'PtZainab@123',
 }
 
 print("-- Run these UPDATE statements in SSMS after running seed.sql:\n")

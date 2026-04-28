@@ -6,6 +6,7 @@ class Patient(db.Model):
     __tablename__ = 'Patients'
 
     patient_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('Users.user_id'), unique=True, nullable=True)
     first_name = db.Column(db.String(50), nullable=False)
     last_name = db.Column(db.String(50), nullable=False)
     dob = db.Column(db.Date, nullable=False)
@@ -19,6 +20,7 @@ class Patient(db.Model):
     registration_date = db.Column(db.DateTime, default=datetime.utcnow)
 
     # Relationships
+    user = db.relationship('User', back_populates='patient_profile')
     appointments = db.relationship('Appointment', back_populates='patient', lazy='dynamic')
     admissions = db.relationship('Admission', back_populates='patient', lazy='dynamic')
     bills = db.relationship('Bill', back_populates='patient', lazy='dynamic')

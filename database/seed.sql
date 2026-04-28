@@ -1,24 +1,27 @@
 -- ============================================================
 -- MediCore HMS - Seed Data
 -- Run AFTER schema.sql
--- NOTE: Password hashes below are bcrypt hashes for 'admin123'
--- Generate fresh hashes using: python -c "import bcrypt; print(bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode())"
+-- NOTE: Password hashes below are bcrypt hashes for the credentials listed at the end of this file.
+-- Generate fresh hashes using: python generate_hashes.py
 -- ============================================================
 
 USE HMS_DB;
 GO
 
 -- ── Users ─────────────────────────────────────────────────────
--- All passwords = 'admin123' (bcrypt hashed - regenerate in production)
+-- Distinct credentials are used for each seeded user (bcrypt hashed).
 INSERT INTO Users (username, password_hash, role, email, full_name)
 VALUES
-('admin',     '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBpj4J/8Zye7oS', 'admin',   'admin@medicore.com',    'System Administrator'),
-('dr_ahmed',  '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBpj4J/8Zye7oS', 'doctor',  'ahmed@medicore.com',    'Dr. Salman Ahmed'),
-('dr_fatima', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBpj4J/8Zye7oS', 'doctor',  'fatima@medicore.com',   'Dr. Fatima Malik'),
-('dr_omar',   '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBpj4J/8Zye7oS', 'doctor',  'omar@medicore.com',     'Dr. Omar Siddiqui'),
-('nurse_sara','$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBpj4J/8Zye7oS', 'nurse',   'sara@medicore.com',     'Sara Hassan'),
-('nurse_ali', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBpj4J/8Zye7oS', 'nurse',   'ali@medicore.com',      'Ali Raza'),
-('billing1',  '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBpj4J/8Zye7oS', 'billing', 'billing@medicore.com',  'Billing Staff');
+('admin',      '$2b$12$rRzT/HlU8BFzTyQ1LW.Hrec8nZ3cWwqWYy4oVKgp6tgpYqrXQCNYW', 'admin',   'admin@medicore.com',    'System Administrator'),
+('dr_ahmed',   '$2b$12$LVEGBSMccyDQ6oVpr7M0Yug.EH55njhqpa1.QTvLtWlsWz3ddQJxy', 'doctor',  'ahmed@medicore.com',    'Dr. Salman Ahmed'),
+('dr_fatima',  '$2b$12$ByWjUwekDDcLasjC4cX5Nuofgok0kja4y7gS5QDmcLnd0ZnJ/wwo6', 'doctor',  'fatima@medicore.com',   'Dr. Fatima Malik'),
+('dr_omar',    '$2b$12$3hO28iFGpj/yyBrGhP0iDekjEveXVBIrUniyuSPBmK3uqcvlx4uZO', 'doctor',  'omar@medicore.com',     'Dr. Omar Siddiqui'),
+('nurse_sara', '$2b$12$tvOGyhOQMVT/hZhMLqU04ukUy/YUOKjpkko87Xupk8h3tVsbO3XtS', 'nurse',   'sara@medicore.com',     'Sara Hassan'),
+('nurse_ali',  '$2b$12$HIjerITiApHDqhckD9BDEeRAFvVObFieifjVc2OqK9yVkWNAKjm0y', 'nurse',   'ali@medicore.com',      'Ali Raza'),
+('billing1',   '$2b$12$ud1Upvj1Ynu1IX2PHkcaT.c5xrBxga7JDbICaPvokMjgeo1EnvwGK', 'billing', 'billing@medicore.com',  'Billing Staff'),
+('pt_mkhan',   '$2b$12$NdgPSP1ztEt6Nghb1e.1VOvpPGNmmMUUu35zVCCQoqOmG7.SOWf5m', 'patient', 'mkhan@email.com',       'Muhammad Khan'),
+('pt_ayesha',  '$2b$12$YqWkSXR.E8zARK2jQLJWu.XaJo1qOegODNtaNPe/gJlkcG5KB3ip6', 'patient', 'ayesha@email.com',      'Ayesha Siddiqui'),
+('pt_zainab',  '$2b$12$g8YJdcoSZcwR7gfaTj/GIe4x.eIoWGMa12jUIoph0thOQnVt8HEZe', 'patient', 'zainab@email.com',      'Zainab Ahmed');
 GO
 
 -- ── Doctors ───────────────────────────────────────────────────
@@ -62,13 +65,13 @@ VALUES
 GO
 
 -- ── Patients ──────────────────────────────────────────────────
-INSERT INTO Patients (first_name, last_name, dob, gender, phone, email, address, emergency_contact, blood_group, allergies)
+INSERT INTO Patients (user_id, first_name, last_name, dob, gender, phone, email, address, emergency_contact, blood_group, allergies)
 VALUES
-('Muhammad', 'Khan',    '1985-03-15', 'Male',   '0300-1111111', 'mkhan@email.com',  '12 Gulshan-e-Iqbal, Karachi', 'Zara Khan: 0301-1111112',   'O+',  'Penicillin'),
-('Ayesha',   'Siddiqui','1992-07-22', 'Female', '0301-2222222', 'ayesha@email.com', '45 Defence Phase 5, Karachi', 'Tariq Siddiqui: 0302-2222', 'A+',  NULL),
-('Hassan',   'Raza',    '1975-11-08', 'Male',   '0302-3333333', NULL,               '8 PECHS Block 2, Karachi',    'Fatima Raza: 0303-3333',   'B+',  'Sulfa drugs'),
-('Zainab',   'Ahmed',   '2001-04-30', 'Female', '0303-4444444', 'zainab@email.com', '22 Clifton Block 9, Karachi', 'Ahmad: 0304-4444444',       'AB+', NULL),
-('Ibrahim',  'Malik',   '1968-09-12', 'Male',   '0304-5555555', NULL,               '99 North Nazimabad, Karachi', 'Sana Malik: 0305-5555',    'O-',  'Aspirin, NSAIDs');
+(8, 'Muhammad', 'Khan',    '1985-03-15', 'Male',   '0300-1111111', 'mkhan@email.com',  '12 Gulshan-e-Iqbal, Karachi', 'Zara Khan: 0301-1111112',   'O+',  'Penicillin'),
+(9, 'Ayesha',   'Siddiqui','1992-07-22', 'Female', '0301-2222222', 'ayesha@email.com', '45 Defence Phase 5, Karachi', 'Tariq Siddiqui: 0302-2222', 'A+',  NULL),
+(NULL, 'Hassan',   'Raza',    '1975-11-08', 'Male',   '0302-3333333', NULL,               '8 PECHS Block 2, Karachi',    'Fatima Raza: 0303-3333',   'B+',  'Sulfa drugs'),
+(10, 'Zainab',   'Ahmed',   '2001-04-30', 'Female', '0303-4444444', 'zainab@email.com', '22 Clifton Block 9, Karachi', 'Ahmad: 0304-4444444',       'AB+', NULL),
+(NULL, 'Ibrahim',  'Malik',   '1968-09-12', 'Male',   '0304-5555555', NULL,               '99 North Nazimabad, Karachi', 'Sana Malik: 0305-5555',    'O-',  'Aspirin, NSAIDs');
 GO
 
 -- ── Medicines ─────────────────────────────────────────────────
@@ -146,12 +149,16 @@ GO
 
 PRINT 'Seed data inserted successfully!';
 PRINT 'Login credentials:';
-PRINT '  Admin:   admin    / admin123';
-PRINT '  Doctor:  dr_ahmed / admin123';
-PRINT '  Nurse:   nurse_sara / admin123';
-PRINT '  Billing: billing1 / admin123';
+PRINT '  Admin:    admin      / Admin@123';
+PRINT '  Doctor 1: dr_ahmed   / DrAhmed@123';
+PRINT '  Doctor 2: dr_fatima  / DrFatima@123';
+PRINT '  Doctor 3: dr_omar    / DrOmar@123';
+PRINT '  Patient 1: pt_mkhan  / PtKhan@123';
+PRINT '  Patient 2: pt_ayesha / PtAyesha@123';
+PRINT '  Patient 3: pt_zainab / PtZainab@123';
+PRINT '  Nurse 1:  nurse_sara / NurseSara@123';
+PRINT '  Billing:  billing1   / Billing@123';
 PRINT '';
-PRINT 'IMPORTANT: The bcrypt hashes in this file are placeholders.';
-PRINT 'Run this Python command to generate fresh hashes and update Users table:';
-PRINT '  python -c "import bcrypt; h=bcrypt.hashpw(b''admin123'', bcrypt.gensalt()).decode(); print(h)"';
+PRINT 'IMPORTANT: Rotate these credentials in production.';
+PRINT 'To regenerate password hashes, run: python generate_hashes.py';
 GO

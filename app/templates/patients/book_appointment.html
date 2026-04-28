@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}Book Appointment — MediCore HMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h2 mb-2"><i class="bi bi-calendar-plus me-2 text-primary"></i>Book an Appointment</h1>
+            <p class="text-muted">Schedule a consultation with your preferred doctor</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card hms-card">
+                <div class="card-body p-4">
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('patients.book_appointment') }}" id="bookingForm">
+                        <!-- Doctor Selection -->
+                        <div class="form-section mb-4">
+                            <label class="form-label fw-600 mb-3">Select Doctor <span class="text-danger">*</span></label>
+                            <div class="doctor-grid" id="doctorGrid">
+                                {% if doctors %}
+                                    {% for doctor in doctors %}
+                                    <div class="doctor-card">
+                                        <input type="radio" name="doctor_id" value="{{ doctor.doctor_id }}" id="doctor_{{ doctor.doctor_id }}" required>
+                                        <label for="doctor_{{ doctor.doctor_id }}" class="doctor-card-label">
+                                            <div class="doctor-avatar">
+                                                <i class="bi bi-person-check"></i>
+                                            </div>
+                                            <div class="doctor-info">
+                                                <h6 class="mb-1">{{ doctor.full_name }}</h6>
+                                                <p class="specialty">{{ doctor.specialization }}</p>
+                                                {% if doctor.consultation_fee %}
+                                                <p class="fee">Consultation: ${{ doctor.consultation_fee }}</p>
+                                                {% endif %}
+                                            </div>
+                                        </label>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="alert alert-info">
+                                        <i class="bi bi-info-circle me-2"></i>No doctors available at the moment
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Date Selection -->
+                        <div class="form-section mb-4">
+                            <label for="appointment_date" class="form-label fw-600">Preferred Date <span class="text-danger">*</span></label>
+                            <input type="date" name="appointment_date" id="appointment_date" class="form-control hms-input" required 
+                                   min="{{ min_booking_date }}"
+                                   max="{{ max_booking_date }}">
+                            <small class="form-text text-muted">Appointments can be booked up to 90 days in advance</small>
+                        </div>
+
+                        <!-- Time Selection -->
+                        <div class="form-section mb-4">
+                            <label for="appointment_time" class="form-label fw-600">Preferred Time <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <i class="bi bi-clock input-group-icon"></i>
+                                <input type="time" name="appointment_time" id="appointment_time" class="form-control hms-input" required>
+                            </div>
+                            <small class="form-text text-muted">Available slots: 09:00 - 17:00 (30-minute intervals)</small>
+                        </div>
+
+                        <!-- Reason for Consultation -->
+                        <div class="form-section mb-4">
+                            <label for="reason" class="form-label fw-600">Reason for Consultation</label>
+                            <textarea name="reason" id="reason" class="form-control hms-input" rows="4" placeholder="Briefly describe your symptoms or reason for visit..."></textarea>
+                            <small class="form-text text-muted">This helps the doctor prepare for your appointment</small>
+                        </div>
+
+                        <!-- Summary -->
+                        <div class="appointment-summary">
+                            <h6 class="mb-3">Appointment Summary</h6>
+                            <div class="summary-item">
+                                <span>Doctor:</span>
+                                <span id="summaryDoctor" class="text-muted">Select a doctor</span>
+                            </div>
+                            <div class="summary-item">
+                                <span>Date:</span>
+                                <span id="summaryDate" class="text-muted">Select a date</span>
+                            </div>
+                            <div class="summary-item">
+                                <span>Time:</span>
+                                <span id="summaryTime" class="text-muted">Select a time</span>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="form-actions mt-4">
+                            <a href="{{ url_for('patients.patient_dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Back
+                            </a>
+                            <button type="submit" class="btn btn-hms-primary">
+                                <i class="bi bi-check-circle me-2"></i>Confirm Appointment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .form-section {
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 20px;
+    }
+
+    .doctor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+    }
+
+    .doctor-card {
+        position: relative;
+    }
+
+    .doctor-card input[type="radio"] {
+        display: none;
+    }
+
+    .doctor-card-label {
+        display: block;
+        padding: 20px;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+    }
+
+    .doctor-card input[type="radio"]:checked + .doctor-card-label {
+        border-color: #007bff;
+        background: #f0f4ff;
+    }
+
+    .doctor-avatar {
+        width: 50px;
+        height: 50px;
+        background: #007bff;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 10px;
+        font-size: 24px;
+    }
+
+    .doctor-card-label h6 {
+        margin-bottom: 5px;
+        color: #333;
+        font-weight: 600;
+    }
+
+    .doctor-card-label .specialty {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .doctor-card-label .fee {
+        font-size: 11px;
+        color: #007bff;
+        font-weight: 600;
+        margin-bottom: 0;
+    }
+
+    .appointment-summary {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 12px;
+        border-left: 4px solid #007bff;
+    }
+
+    .summary-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        font-size: 14px;
+    }
+
+    .summary-item span:first-child {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .summary-item span:last-child {
+        text-align: right;
+    }
+
+    .input-group-icon {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #007bff;
+        pointer-events: none;
+    }
+
+    .input-group {
+        position: relative;
+    }
+
+    .input-group .form-control {
+        padding-left: 40px;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+
+    .form-actions .btn {
+        min-width: 140px;
+    }
+</style>
+
+<script>
+    // Update summary when form values change
+    const form = document.getElementById('bookingForm');
+    const doctorRadios = document.querySelectorAll('input[name="doctor_id"]');
+    const dateInput = document.getElementById('appointment_date');
+    const timeInput = document.getElementById('appointment_time');
+
+    doctorRadios.forEach(radio => {
+        radio.addEventListener('change', updateSummary);
+    });
+
+    dateInput.addEventListener('change', updateSummary);
+    timeInput.addEventListener('change', updateSummary);
+
+    function updateSummary() {
+        // Update doctor
+        const selectedRadio = document.querySelector('input[name="doctor_id"]:checked');
+        if (selectedRadio) {
+            const doctorCard = selectedRadio.parentElement;
+            const doctorName = doctorCard.querySelector('.doctor-card-label h6').textContent;
+            document.getElementById('summaryDoctor').textContent = doctorName;
+        }
+
+        // Update date
+        if (dateInput.value) {
+            const date = new Date(dateInput.value);
+            const options = { year: 'numeric', month: 'short', day: 'numeric' };
+            document.getElementById('summaryDate').textContent = date.toLocaleDateString('en-US', options);
+        }
+
+        // Update time
+        if (timeInput.value) {
+            document.getElementById('summaryTime').textContent = timeInput.value;
+        }
+    }
+
+    // Set minimum date to tomorrow
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + 90);
+    
+    dateInput.min = tomorrow.toISOString().split('T')[0];
+    dateInput.max = maxDate.toISOString().split('T')[0];
+</script>
+{% endblock %}

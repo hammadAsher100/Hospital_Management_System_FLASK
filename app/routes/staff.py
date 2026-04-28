@@ -1,10 +1,11 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app import db
 from app.models.doctor import Doctor, Nurse, DoctorSchedule
 from app.models.user import User
+from app.models.appointment import Appointment
 from app.utils import role_required, admin_required
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 staff_bp = Blueprint('staff', __name__)
 
@@ -157,3 +158,153 @@ def toggle_user(id):
     status = 'activated' if user.is_active else 'deactivated'
     flash(f'User {user.username} {status}.', 'success')
     return redirect(url_for('staff.list_users'))
+
+
+# ============================================================================
+# DOCTOR DASHBOARD ROUTES
+# ============================================================================
+
+@staff_bp.route('/doctor-dashboard')
+@login_required
+def doctor_dashboard():
+    """Doctor dashboard showing today's appointments and stats"""
+    if not current_user.is_doctor():
+        flash('You do not have access to this page.', 'danger')
+        return redirect(url_for('auth.login'))
+    
+    doctor = Doctor.query.filter_by(user_id=current_user.user_id).first()
+    if not doctor:
+        flash('Doctor profile not found.', 'danger')
+        return redirect(url_for('auth.logout'))
+    
+    # Get today's appointments
+    today_appointments = Appointment.query.filter(
+        Appointment.doctor_id == doctor.doctor_id,
+        Appointment.appointment_date == date.today(),
+        Appointment.status == 'scheduled'
+    ).order_by(Appointment.appointment_time).all()
+    
+    # Get upcoming appointments (next 7 days)
+    week_later = date.today() + timedelta(days=7)
+    upcoming_appointments = Appointment.query.filter(
+        Appointment.doctor_id == doctor.doctor_id,
+        Appointment.appointment_date > date.today(),
+        Appointment.appointment_date <= week_later,
+        Appointment.status == 'scheduled'
+    ).order_by(Appointment.appointment_date, Appointment.appointment_time).all()
+    
+    # Get stats
+    total_appointments = Appointment.query.filter_by(doctor_id=doctor.doctor_id).count()
+    completed_appointments = Appointment.query.filter_by(
+        doctor_id=doctor.doctor_id,
+        status='completed'
+    ).count()
+    pending_appointments = Appointment.query.filter_by(
+        doctor_id=doctor.doctor_id,
+        status='scheduled'
+    ).count()
+    
+    return render_template(
+        'staff/doctor_dashboard.html',
+        doctor=doctor,
+        today_appointments=today_appointments,
+        upcoming_appointments=upcoming_appointments,
+        total_appointments=total_appointments,
+        completed_appointments=completed_appointments,
+        pending_appointments=pending_appointments
+    )
+
+
+@staff_bp.route('/doctor/appointments')
+@login_required
+def doctor_appointments():
+    """View all appointments for the current doctor"""
+    if not current_user.is_doctor():
+        flash('You do not have access to this page.', 'danger')
+        return redirect(url_for('auth.login'))
+    
+    doctor = Doctor.query.filter_by(user_id=current_user.user_id).first()
+    if not doctor:
+        flash('Doctor profile not found.', 'danger')
+        return redirect(url_for('auth.logout'))
+    
+    status_filter = request.args.get('status', '')
+    date_filter = request.args.get('date', '')
+    page = request.args.get('page', 1, type=int)
+    
+    query = Appointment.query.filter_by(doctor_id=doctor.doctor_id)
+    
+    if status_filter:
+        query = query.filter(Appointment.status == status_filter)
+    
+    if date_filter:
+        try:
+            filter_date = datetime.strptime(date_filter, '%Y-%m-%d').date()
+            query = query.filter(Appointment.appointment_date == filter_date)
+        except ValueError:
+            pass
+    
+    appointments = query.order_by(
+        Appointment.appointment_date.desc(),
+        Appointment.appointment_time.desc()
+    ).paginate(page=page, per_page=10, error_out=False)
+    
+    return render_template(
+        'staff/doctor_appointments.html',
+        doctor=doctor,
+        appointments=appointments,
+        status_filter=status_filter,
+        date_filter=date_filter
+    )
+
+
+# ============================================================================
+# NURSE DASHBOARD ROUTES
+# ============================================================================
+
+@staff_bp.route('/nurse-dashboard')
+@login_required
+def nurse_dashboard():
+    """Nurse dashboard showing ward information and tasks"""
+    if not current_user.is_nurse():
+        flash('You do not have access to this page.', 'danger')
+        return redirect(url_for('auth.login'))
+    
+    nurse = Nurse.query.filter_by(user_id=current_user.user_id).first()
+    if not nurse:
+        flash('Nurse profile not found.', 'danger')
+        return redirect(url_for('auth.logout'))
+    
+    # Get today's appointments involving patients assigned to this nurse's ward
+    today_appointments = Appointment.query.filter(
+        Appointment.appointment_date == date.today(),
+        Appointment.status == 'scheduled'
+    ).order_by(Appointment.appointment_time).all()
+    
+    # Get stats
+    total_patients = Appointment.query.filter(
+        Appointment.appointment_date >= date.today() - timedelta(days=30)
+    ).distinct(Appointment.patient_id).count()
+    
+    return render_template(
+        'staff/nurse_dashboard.html',
+        nurse=nurse,
+        today_appointments=today_appointments,
+        total_patients=total_patients
+    )
+
+
+@staff_bp.route('/nurse/schedule')
+@login_required
+def nurse_schedule():
+    """View nurse schedule"""
+    if not current_user.is_nurse():
+        flash('You do not have access to this page.', 'danger')
+        return redirect(url_for('auth.login'))
+    
+    nurse = Nurse.query.filter_by(user_id=current_user.user_id).first()
+    if not nurse:
+        flash('Nurse profile not found.', 'danger')
+        return redirect(url_for('auth.logout'))
+    
+    return render_template('staff/nurse_schedule.html', nurse=nurse)

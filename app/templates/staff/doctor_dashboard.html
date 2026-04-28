@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+
+{% block title %}Doctor Dashboard — MediCore HMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-0"><i class="bi bi-heart-pulse me-2 text-danger"></i>Dashboard</h1>
+                    <p class="text-muted mb-0">Welcome back, {{ doctor.full_name }}!</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('staff.doctor_appointments') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-calendar me-2"></i>View All Appointments
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Total Appointments</p>
+                            <h3 class="mb-0">{{ total_appointments }}</h3>
+                        </div>
+                        <div class="stat-icon bg-primary">
+                            <i class="bi bi-calendar-check text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Pending</p>
+                            <h3 class="mb-0">{{ pending_appointments }}</h3>
+                        </div>
+                        <div class="stat-icon bg-warning">
+                            <i class="bi bi-hourglass-split text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <h3 class="mb-0">{{ completed_appointments }}</h3>
+                        </div>
+                        <div class="stat-icon bg-success">
+                            <i class="bi bi-check-circle text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Specialization</p>
+                            <h6 class="mb-0">{{ doctor.specialization }}</h6>
+                        </div>
+                        <div class="stat-icon bg-info">
+                            <i class="bi bi-briefcase text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Today's Appointments -->
+        <div class="col-lg-8">
+            <div class="card hms-card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-calendar-today me-2"></i>Today's Appointments</h5>
+                    <span class="badge bg-primary">{{ today_appointments|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if today_appointments %}
+                        <div class="appointment-list">
+                            {% for appt in today_appointments %}
+                            <div class="appointment-item">
+                                <div class="appointment-time">
+                                    <span class="time">{{ appt.appointment_time.strftime('%H:%M') }}</span>
+                                </div>
+                                <div class="appointment-info">
+                                    <h6 class="mb-1">{{ appt.patient.full_name }}</h6>
+                                    <p class="text-muted small mb-0">Patient ID: {{ appt.patient.patient_id }}</p>
+                                    {% if appt.reason %}
+                                    <p class="text-muted small mb-0"><strong>Reason:</strong> {{ appt.reason }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="appointment-status">
+                                    <span class="badge bg-info">Scheduled</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-4 text-center text-muted">
+                            <i class="bi bi-calendar-x display-4 mb-2"></i>
+                            <p class="mb-0">No appointments scheduled for today</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Upcoming Week -->
+            <div class="card hms-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-calendar-week me-2"></i>Upcoming Week</h5>
+                    <span class="badge bg-primary">{{ upcoming_appointments|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if upcoming_appointments %}
+                        <div class="appointment-list">
+                            {% for appt in upcoming_appointments %}
+                            <div class="appointment-item">
+                                <div class="appointment-time">
+                                    <span class="date">{{ appt.appointment_date.strftime('%a, %b %d') }}</span>
+                                    <span class="time">{{ appt.appointment_time.strftime('%H:%M') }}</span>
+                                </div>
+                                <div class="appointment-info">
+                                    <h6 class="mb-1">{{ appt.patient.full_name }}</h6>
+                                    <p class="text-muted small mb-0">Phone: {{ appt.patient.phone }}</p>
+                                </div>
+                                <div class="appointment-status">
+                                    <span class="badge bg-info">Pending</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-4 text-center text-muted">
+                            <p class="mb-0">No appointments scheduled for this week</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Doctor Info & Quick Actions -->
+        <div class="col-lg-4">
+            <!-- Doctor Profile -->
+            <div class="card hms-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-person me-2"></i>Your Profile</h5>
+                </div>
+                <div class="card-body">
+                    <div class="profile-info text-center mb-4">
+                        <div class="profile-avatar mb-3">
+                            <i class="bi bi-person-circle display-1 text-primary"></i>
+                        </div>
+                        <h6>{{ doctor.full_name }}</h6>
+                        <p class="text-muted small mb-2">{{ doctor.specialization }}</p>
+                        <p class="text-muted small">Consultation Fee: ${{ doctor.consultation_fee or 0 }}</p>
+                    </div>
+                    
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Email</label>
+                        <p class="mb-0">{{ doctor.email or 'Not provided' }}</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Phone</label>
+                        <p class="mb-0">{{ doctor.phone or 'Not provided' }}</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Status</label>
+                        <p class="mb-0">
+                            {% if doctor.availability_status %}
+                                <span class="badge bg-success">Available</span>
+                            {% else %}
+                                <span class="badge bg-danger">Unavailable</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    
+                    <hr>
+                    
+                    <a href="{{ url_for('staff.manage_schedule', id=doctor.doctor_id) }}" class="btn btn-sm btn-outline-primary w-100 mb-2">
+                        <i class="bi bi-calendar-event me-2"></i>Manage Schedule
+                    </a>
+                    <a href="{{ url_for('auth.profile') }}" class="btn btn-sm btn-outline-secondary w-100">
+                        <i class="bi bi-pencil me-2"></i>Edit Profile
+                    </a>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="card hms-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Performance</h5>
+                </div>
+                <div class="card-body">
+                    <div class="stat-row mb-3">
+                        <span class="stat-label">Completion Rate</span>
+                        <span class="stat-value">
+                            {% if total_appointments > 0 %}
+                                {{ ((completed_appointments / total_appointments) * 100)|int }}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: {% if total_appointments > 0 %}{{ ((completed_appointments / total_appointments) * 100)|int }}{% else %}0{% endif %}%"></div>
+                    </div>
+                    
+                    <div class="stat-row">
+                        <span class="stat-label">Avg Response Time</span>
+                        <span class="stat-value">&lt; 24h</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 24px;
+    }
+
+    .appointment-list {
+        divide-y: 1px solid #e0e0e0;
+    }
+
+    .appointment-item {
+        display: flex;
+        gap: 15px;
+        padding: 15px;
+        border-bottom: 1px solid #f0f0f0;
+        align-items: center;
+    }
+
+    .appointment-item:last-child {
+        border-bottom: none;
+    }
+
+    .appointment-time {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 70px;
+    }
+
+    .appointment-time .date {
+        font-weight: 600;
+        color: #007bff;
+        font-size: 12px;
+    }
+
+    .appointment-time .time {
+        color: #666;
+        font-size: 14px;
+        font-weight: 600;
+        margin-top: 3px;
+    }
+
+    .appointment-info {
+        flex: 1;
+    }
+
+    .appointment-info h6 {
+        margin-bottom: 3px;
+        color: #333;
+    }
+
+    .appointment-status {
+        text-align: right;
+    }
+
+    .profile-avatar {
+        background: #f0f4ff;
+        padding: 20px;
+        border-radius: 12px;
+        display: inline-block;
+        width: 100%;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        font-size: 14px;
+    }
+
+    .stat-label {
+        color: #666;
+        font-weight: 500;
+    }
+
+    .stat-value {
+        color: #007bff;
+        font-weight: 600;
+    }
+
+    .info-item label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-item p {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}

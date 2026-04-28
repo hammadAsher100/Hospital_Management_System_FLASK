@@ -9,6 +9,105 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        .role-selector {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .role-card {
+            flex: 1;
+            min-width: 120px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            background: #f8f9fa;
+            position: relative;
+        }
+        
+        .role-card:hover {
+            border-color: #007bff;
+            background: #f0f4ff;
+            transform: translateY(-2px);
+        }
+        
+        .role-card.active {
+            border-color: #007bff;
+            background: #007bff;
+            color: white;
+        }
+        
+        .role-card i {
+            display: block;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .role-card .role-label {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .role-card .role-desc {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        
+        .role-card.active .role-desc {
+            opacity: 0.9;
+        }
+        
+        #selected_role {
+            display: none;
+        }
+        
+        .form-section {
+            margin-top: 20px;
+        }
+        
+        .module-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            position: relative;
+        }
+        
+        .tab-btn {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            position: relative;
+            transition: color 0.3s;
+        }
+        
+        .tab-btn:hover {
+            color: #007bff;
+        }
+        
+        .tab-btn.active {
+            color: #007bff;
+        }
+        
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #007bff;
+        }
+    </style>
 </head>
 <body class="login-body">
 
@@ -24,7 +123,7 @@
             <p>Manage patients, appointments, billing and pharmacy from a single unified platform.</p>
         </div>
         <div class="login-stats">
-            <div class="ls-item"><span class="ls-num">4</span><span>User Roles</span></div>
+            <div class="ls-item"><span class="ls-num">3</span><span>User Modules</span></div>
             <div class="ls-item"><span class="ls-num">6</span><span>Core Modules</span></div>
             <div class="ls-item"><span class="ls-num">∞</span><span>Patients</span></div>
         </div>
@@ -43,7 +142,21 @@
                 {% endfor %}
             {% endwith %}
 
+            <div class="module-tabs">
+                <button type="button" class="tab-btn active" data-module="staff" onclick="switchModule('staff', this)">
+                    <i class="bi bi-briefcase me-2"></i>Staff
+                </button>
+                <button type="button" class="tab-btn" data-module="doctor" onclick="switchModule('doctor', this)">
+                    <i class="bi bi-heart-pulse me-2"></i>Doctor
+                </button>
+                <button type="button" class="tab-btn" data-module="patient" onclick="switchModule('patient', this)">
+                    <i class="bi bi-person-heart me-2"></i>Patient
+                </button>
+            </div>
+
             <form method="POST" action="{{ url_for('auth.login') }}">
+                <input type="hidden" name="user_module" id="user_module" value="staff">
+                
                 <div class="form-group mb-4">
                     <label class="form-label">Username</label>
                     <div class="input-icon-wrap">
@@ -67,13 +180,23 @@
                 </button>
             </form>
 
-            <div class="login-hint mt-4">
-                <small class="text-muted">Default admin: <code>admin</code> / <code>admin123</code></small>
+            <div class="login-signup mt-4 pt-4 border-top text-center">
+                <small class="text-muted">New patient? <a href="{{ url_for('auth.signup') }}" class="text-primary fw-600">Create your patient account</a></small>
             </div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function switchModule(module, element) {
+        // Update active tab
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        element.classList.add('active');
+        
+        // Update hidden input
+        document.getElementById('user_module').value = module;
+    }
+</script>
 </body>
 </html>

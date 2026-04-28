@@ -22,7 +22,7 @@ CREATE TABLE Users (
     user_id       INT IDENTITY(1,1) PRIMARY KEY,
     username      NVARCHAR(50)  NOT NULL UNIQUE,
     password_hash NVARCHAR(255) NOT NULL,
-    role          NVARCHAR(20)  NOT NULL CHECK (role IN ('admin', 'doctor', 'nurse', 'billing')),
+    role          NVARCHAR(20)  NOT NULL CHECK (role IN ('admin', 'doctor', 'nurse', 'billing', 'patient')),
     email         NVARCHAR(100) NOT NULL UNIQUE,
     full_name     NVARCHAR(100) NOT NULL,
     created_at    DATETIME      DEFAULT GETDATE(),
@@ -30,13 +30,13 @@ CREATE TABLE Users (
     is_active     BIT           DEFAULT 1
 );
 
-CREATE INDEX IX_Users_username ON Users (username);
 CREATE INDEX IX_Users_role     ON Users (role);
 GO
 
 -- ── Patients ──────────────────────────────────────────────────
 CREATE TABLE Patients (
     patient_id        INT IDENTITY(1,1) PRIMARY KEY,
+    user_id           INT            NULL REFERENCES Users(user_id) ON DELETE CASCADE,
     first_name        NVARCHAR(50)  NOT NULL,
     last_name         NVARCHAR(50)  NOT NULL,
     dob               DATE          NOT NULL,
@@ -52,6 +52,7 @@ CREATE TABLE Patients (
 
 CREATE INDEX IX_Patients_name  ON Patients (last_name, first_name);
 CREATE INDEX IX_Patients_phone ON Patients (phone);
+CREATE UNIQUE INDEX UQ_Patients_user_id_nonnull ON Patients (user_id) WHERE user_id IS NOT NULL;
 GO
 
 -- ── Doctors ───────────────────────────────────────────────────
@@ -121,7 +122,7 @@ CREATE TABLE Admissions (
     admission_id   INT IDENTITY(1,1) PRIMARY KEY,
     patient_id     INT          NOT NULL REFERENCES Patients(patient_id) ON DELETE CASCADE,
     doctor_id      INT          NOT NULL REFERENCES Doctors(doctor_id),
-    nurse_id       INT          NULL REFERENCES Nurses(nurse_id) ON DELETE SET NULL,
+    nurse_id       INT          NULL REFERENCES Nurses(nurse_id) ON DELETE NO ACTION,
     admission_date DATETIME     DEFAULT GETDATE(),
     discharge_date DATETIME     NULL,
     room_number    NVARCHAR(20) NULL,

@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Dashboard — MediCore HMS{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h2 mb-0"><i class="bi bi-person-heart me-2 text-primary"></i>Dashboard</h1>
+                    <p class="text-muted mb-0">Welcome back, {{ current_user.full_name }}!</p>
+                </div>
+                <a href="{{ url_for('patients.book_appointment') }}" class="btn btn-hms-primary">
+                    <i class="bi bi-plus-circle me-2"></i>Book Appointment
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Total Appointments</p>
+                            <h3 class="mb-0">{{ total_appointments }}</h3>
+                        </div>
+                        <div class="stat-icon bg-primary">
+                            <i class="bi bi-calendar-check text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Completed</p>
+                            <h3 class="mb-0">{{ completed_appointments }}</h3>
+                        </div>
+                        <div class="stat-icon bg-success">
+                            <i class="bi bi-check-circle text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Upcoming</p>
+                            <h3 class="mb-0">{{ upcoming_appointments|length }}</h3>
+                        </div>
+                        <div class="stat-icon bg-warning">
+                            <i class="bi bi-clock text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card hms-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted small mb-1">Blood Group</p>
+                            <h3 class="mb-0">{{ patient.blood_group or 'N/A' }}</h3>
+                        </div>
+                        <div class="stat-icon bg-danger">
+                            <i class="bi bi-droplet text-white"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Upcoming Appointments -->
+        <div class="col-lg-8">
+            <div class="card hms-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-calendar-event me-2"></i>Upcoming Appointments</h5>
+                    <a href="{{ url_for('patients.my_appointments') }}" class="small text-primary">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    {% if upcoming_appointments %}
+                        <div class="appointment-list">
+                            {% for appt in upcoming_appointments[:5] %}
+                            <div class="appointment-item">
+                                <div class="appointment-time">
+                                    <span class="date">{{ appt.appointment_date.strftime('%b %d') }}</span>
+                                    <span class="time">{{ appt.appointment_time.strftime('%H:%M') }}</span>
+                                </div>
+                                <div class="appointment-info">
+                                    <h6 class="mb-1">{{ appt.doctor.full_name }}</h6>
+                                    <p class="text-muted small mb-0">{{ appt.doctor.specialization }}</p>
+                                    {% if appt.reason %}
+                                    <p class="text-muted small mb-0"><strong>Reason:</strong> {{ appt.reason }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="appointment-actions">
+                                    <a href="{{ url_for('patients.patient_view_appointment', id=appt.appointment_id) }}" class="btn btn-sm btn-outline-primary">View</a>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-4 text-center text-muted">
+                            <i class="bi bi-calendar-x display-4 mb-3"></i>
+                            <p class="mb-0">No upcoming appointments</p>
+                            <a href="{{ url_for('patients.book_appointment') }}" class="btn btn-sm btn-primary mt-3">Book One Now</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Patient Info & Quick Actions -->
+        <div class="col-lg-4">
+            <!-- Patient Info Card -->
+            <div class="card hms-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-person me-2"></i>Your Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Name</label>
+                        <p class="mb-0">{{ patient.full_name }}</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Email</label>
+                        <p class="mb-0">{{ patient.email or 'Not provided' }}</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Phone</label>
+                        <p class="mb-0">{{ patient.phone }}</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Age</label>
+                        <p class="mb-0">{{ patient.age }} years</p>
+                    </div>
+                    <div class="info-item mb-3">
+                        <label class="text-muted small">Gender</label>
+                        <p class="mb-0">{{ patient.gender }}</p>
+                    </div>
+                    <hr>
+                    <a href="{{ url_for('auth.profile') }}" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="bi bi-pencil me-2"></i>Edit Profile
+                    </a>
+                </div>
+            </div>
+
+            <!-- Recent Appointments -->
+            <div class="card hms-card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-history me-2"></i>Recent Visits</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if past_appointments %}
+                        <div class="appointment-list">
+                            {% for appt in past_appointments %}
+                            <div class="appointment-item small">
+                                <div class="appointment-time">
+                                    <span class="date">{{ appt.appointment_date.strftime('%b %d, %Y') }}</span>
+                                </div>
+                                <div class="appointment-info">
+                                    <h6 class="mb-1 small">Dr. {{ appt.doctor.first_name }}</h6>
+                                    <span class="badge bg-success">Completed</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="p-4 text-center text-muted">
+                            <p class="small mb-0">No past appointments</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 24px;
+    }
+
+    .appointment-list {
+        divide-y: 1px solid #e0e0e0;
+    }
+
+    .appointment-item {
+        display: flex;
+        gap: 15px;
+        padding: 15px;
+        border-bottom: 1px solid #f0f0f0;
+        align-items: flex-start;
+        transition: background 0.2s;
+    }
+
+    .appointment-item:hover {
+        background: #f9f9f9;
+    }
+
+    .appointment-item:last-child {
+        border-bottom: none;
+    }
+
+    .appointment-time {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 60px;
+    }
+
+    .appointment-time .date {
+        font-weight: 600;
+        color: #007bff;
+        font-size: 12px;
+    }
+
+    .appointment-time .time {
+        color: #666;
+        font-size: 13px;
+        margin-top: 3px;
+    }
+
+    .appointment-info {
+        flex: 1;
+    }
+
+    .appointment-info h6 {
+        margin-bottom: 3px;
+        color: #333;
+    }
+
+    .appointment-actions {
+        display: flex;
+        gap: 5px;
+    }
+
+    .info-item label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-item p {
+        font-size: 14px;
+        color: #333;
+        font-weight: 500;
+    }
+</style>
+{% endblock %}
