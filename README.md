@@ -1,230 +1,262 @@
-# 🏥 MediCore — Hospital Management System
+<div align="center">
 
-A complete Flask-based Hospital Management System with SQL Server (SSMS) integration, role-based access control, and a modern Bootstrap 5 UI.
+<!-- Animated Banner -->
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=200&section=header&text=Hospital%20Management%20System&fontSize=40&fontColor=fff&animation=twinkling&fontAlignY=35&desc=A%20full-stack%20web%20application%20to%20digitize%20hospital%20operations&descAlignY=55&descSize=16" width="100%"/>
+
+<br/>
+
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=for-the-badge&logo=flask&logoColor=white)
+![SQL Server](https://img.shields.io/badge/SQL%20Server-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=white)
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)
+
+<br/>
+
+> **A comprehensive, role-based Hospital Management System built with Flask & Microsoft SQL Server — designed to digitize, automate, and streamline hospital operations from patient intake to billing.**
+
+<br/>
+
+[🚀 Features](#-features) · [🏗️ Architecture](#️-architecture) · [📁 Project Structure](#-project-structure) · [⚙️ Setup](#️-setup--installation) · [👥 Team](#-team)
+
+</div>
 
 ---
 
-## 📦 Tech Stack
+## 📌 Overview
 
-| Layer      | Technology                        |
-|------------|-----------------------------------|
-| Backend    | Python 3.10+, Flask 3.x           |
-| ORM        | Flask-SQLAlchemy 3.x              |
-| Database   | Microsoft SQL Server (SSMS)       |
-| Auth       | Flask-Login + bcrypt              |
-| Frontend   | Bootstrap 5.3, Chart.js 4.x       |
-| Fonts      | DM Sans, DM Mono (Google Fonts)   |
+The **Hospital Management System (HMS)** is a secure, web-based platform built for small to mid-sized hospitals and clinics. It replaces fragmented, paper-based processes with a unified digital environment — covering everything from patient registration and appointment scheduling to pharmacy inventory and admin-level reporting.
+
+The system supports **four distinct user roles** — Administrator, Doctor, Nurse, and Billing Staff — each with access scoped to their responsibilities.
 
 ---
 
-## 🚀 Quick Start
+## ✨ Features
 
-### 1. Prerequisites
+### 🧑‍⚕️ Patient Management
+- Register new patients with complete demographic and medical profiles
+- Maintain detailed medical history per patient
+- Track admissions and discharge records
 
-- Python 3.10+
-- Microsoft SQL Server Express (or full) with SSMS
-- ODBC Driver 17 for SQL Server → [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
+### 📅 Appointment Scheduling
+- Book, reschedule, and cancel appointments
+- Automated conflict detection to prevent double-booking
+- Doctor availability checks in real-time
 
-### 2. Clone & Install
+### 👨‍💼 Doctor & Staff Management
+- Manage doctor profiles, specializations, and weekly schedules
+- Assign and update staff roles and access levels
+- Track availability for appointment routing
+
+### 💳 Billing & Invoice Generation
+- Generate itemized invoices for consultations, procedures, and medications
+- Track payment status (paid / pending / partial)
+- Exportable billing records
+
+### 💊 Pharmacy Management
+- Manage medicine inventory with quantity tracking
+- Process prescriptions linked to patient visits
+- Automated **low-stock alerts** to prevent stockouts
+
+### 📊 Admin Dashboard & Reports
+- Role-based access control (RBAC) across all modules
+- Real-time statistics: active patients, appointments today, revenue, inventory status
+- Exportable reports for management and auditing
+
+---
+
+## 🏗️ Architecture
+
+The system follows a layered **MVC (Model-View-Controller)** architecture:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Client (Browser)                    │
+│              HTML · CSS · Jinja2 Templates              │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP
+┌────────────────────────▼────────────────────────────────┐
+│                Flask Application Layer                  │
+│         Routes · Controllers · Middleware (Auth)        │
+└────────────────────────┬────────────────────────────────┘
+                         │ ORM / Raw SQL
+┌────────────────────────▼────────────────────────────────┐
+│           Microsoft SQL Server (Database)               │
+│   Patients · Appointments · Staff · Billing · Pharmacy  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Tech Stack:**
+
+| Layer | Technology |
+|---|---|
+| Backend Framework | Flask (Python) |
+| Database | Microsoft SQL Server |
+| Templating | Jinja2 |
+| Frontend | HTML5, CSS3, JavaScript |
+| Auth | Flask-Login + bcrypt |
+| ORM / DB Driver | pyodbc / SQLAlchemy |
+
+---
+
+## 📁 Project Structure
+
+```
+hospital-management-system/
+│
+├── app/
+│   ├── __init__.py               # App factory & config
+│   ├── models/                   # Database models
+│   │   ├── patient.py
+│   │   ├── doctor.py
+│   │   ├── appointment.py
+│   │   ├── billing.py
+│   │   ├── pharmacy.py
+│   │   └── user.py
+│   │
+│   ├── routes/                   # Blueprint route handlers
+│   │   ├── auth.py               # Login / logout
+│   │   ├── patients.py
+│   │   ├── appointments.py
+│   │   ├── staff.py
+│   │   ├── billing.py
+│   │   ├── pharmacy.py
+│   │   └── admin.py
+│   │
+│   ├── templates/                # Jinja2 HTML templates
+│   │   ├── base.html
+│   │   ├── dashboard/
+│   │   ├── patients/
+│   │   ├── appointments/
+│   │   ├── billing/
+│   │   ├── pharmacy/
+│   │   └── staff/
+│   │
+│   └── static/                   # CSS, JS, images
+│       ├── css/
+│       ├── js/
+│       └── img/
+│
+├── database/
+│   ├── schema.sql                # Full DB schema
+│   └── seed.sql                  # Sample / seed data
+│
+├── config.py                     # Environment config
+├── requirements.txt
+├── run.py                        # Entry point
+└── README.md
+```
+
+---
+
+## ⚙️ Setup & Installation
+
+### Prerequisites
+
+- Python 3.11+
+- Microsoft SQL Server (or SQL Server Express)
+- ODBC Driver 17/18 for SQL Server
+
+### 1. Clone the repository
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/hammadasher100/hospital-management-system.git
 cd hospital-management-system
+```
 
+### 2. Create and activate a virtual environment
+
+```bash
 python -m venv venv
-# Windows:
-venv\Scripts\activate
-# Mac/Linux:
-source venv/bin/activate
 
+# Windows
+venv\Scripts\activate
+
+# macOS / Linux
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment
+### 4. Configure the database
+
+Edit `config.py` and set your SQL Server connection string:
+
+```python
+SQLALCHEMY_DATABASE_URI = (
+    "mssql+pyodbc://USERNAME:PASSWORD@SERVER/HMS_DB"
+    "?driver=ODBC+Driver+17+for+SQL+Server"
+)
+```
+
+Then run the schema to initialize the database:
 
 ```bash
-cp .env .env.local
+sqlcmd -S YOUR_SERVER -d HMS_DB -i database/schema.sql
+sqlcmd -S YOUR_SERVER -d HMS_DB -i database/seed.sql
 ```
 
-Edit `.env`:
-```env
-SECRET_KEY=your-super-secret-key-here
-DB_SERVER=localhost\SQLEXPRESS
-DB_NAME=HMS_DB
-# Leave DB_USERNAME and DB_PASSWORD blank for Windows Auth
-```
-
-### 4. Set Up Database
-
-Open **SQL Server Management Studio (SSMS)** and run in order:
-
-```sql
--- Step 1: Create schema
--- File: database/schema.sql
-
--- Step 2: Insert seed data
--- File: database/seed.sql
-```
-
-### 5. Fix Password Hashes
-
-The seed.sql contains placeholder bcrypt hashes. Generate real ones:
-
-```bash
-python generate_hashes.py
-```
-
-Copy and run the printed UPDATE statements in SSMS.
-
-### 6. Run the Application
+### 5. Run the application
 
 ```bash
 python run.py
 ```
 
-Open your browser: **http://localhost:5000**
+Visit `http://127.0.0.1:5000` in your browser.
 
 ---
 
-## 👥 Default Login Credentials
+## 👥 Roles & Access
 
-| Username     | Password  | Role    |
-|-------------|-----------|---------|
-| `admin`     | `admin123`| Admin   |
-| `dr_ahmed`  | `admin123`| Doctor  |
-| `dr_fatima` | `admin123`| Doctor  |
-| `nurse_sara`| `admin123`| Nurse   |
-| `billing1`  | `admin123`| Billing |
-
-> ⚠️ Change all passwords immediately in production!
+| Role | Access Scope |
+|---|---|
+| **Administrator** | Full access — all modules + user management |
+| **Doctor** | Patient records, appointments, prescriptions |
+| **Nurse** | Patient tracking, admission/discharge |
+| **Billing Staff** | Invoice generation, payment tracking |
 
 ---
 
-## 🗂️ Project Structure
+## 🗂️ Module Ownership
 
-```
-hospital-management-system/
-├── app/
-│   ├── __init__.py           # App factory
-│   ├── models/               # SQLAlchemy models
-│   │   ├── user.py
-│   │   ├── patient.py
-│   │   ├── doctor.py         # Doctor + Nurse + DoctorSchedule
-│   │   ├── appointment.py
-│   │   ├── billing.py        # Bill + BillItem
-│   │   ├── pharmacy.py       # Medicine + Prescription + PrescriptionItem
-│   │   └── admission.py
-│   ├── routes/               # Blueprint controllers
-│   │   ├── auth.py           # /auth/*
-│   │   ├── patients.py       # /patients/*
-│   │   ├── appointments.py   # /appointments/*
-│   │   ├── staff.py          # /staff/*
-│   │   ├── billing.py        # /billing/*
-│   │   ├── pharmacy.py       # /pharmacy/*
-│   │   └── admin.py          # /admin/*
-│   ├── templates/            # Jinja2 HTML
-│   ├── static/               # CSS, JS
-│   └── utils/                # Decorators
-├── database/
-│   ├── schema.sql            # Full DB schema
-│   └── seed.sql              # Sample data
-├── config.py
-├── requirements.txt
-├── generate_hashes.py
-└── run.py
-```
+| Module | Owner |
+|---|---|
+| Patient Management & Appointment Scheduling | Muhammad Hammad Asher *(Team Lead)* |
+| Billing & Pharmacy Management | Aliza Ujan |
+| Reports, Analytics & Admin Dashboard | Alifya Shabbir |
+| Doctor & Staff Management | Asma Azam |
 
 ---
 
-## 🔐 Role Permissions
+## 🛣️ Roadmap
 
-| Feature              | Admin | Doctor | Nurse | Billing |
-|---------------------|-------|--------|-------|---------|
-| Dashboard           | ✅    | ✅     | ✅    | ✅      |
-| View Patients       | ✅    | ✅     | ✅    | ✅      |
-| Add/Edit Patients   | ✅    | ✅     | ✅    | ❌      |
-| Delete Patients     | ✅    | ❌     | ❌    | ❌      |
-| Book Appointments   | ✅    | ✅     | ✅    | ❌      |
-| Complete/Cancel Appt| ✅    | ✅     | ❌    | ❌      |
-| Generate Bills      | ✅    | ❌     | ❌    | ✅      |
-| Record Payments     | ✅    | ❌     | ❌    | ✅      |
-| Manage Pharmacy     | ✅    | ❌     | ❌    | ✅      |
-| Create Prescriptions| ✅    | ✅     | ❌    | ❌      |
-| Dispense Medicines  | ✅    | ❌     | ❌    | ✅      |
-| Manage Staff        | ✅    | ❌     | ❌    | ❌      |
-| View Reports        | ✅    | ❌     | ❌    | ❌      |
+- [x] Project proposal & architecture design
+- [ ] Database schema design & normalization
+- [ ] Patient & appointment module
+- [ ] Doctor & staff module
+- [ ] Billing & pharmacy module
+- [ ] Admin dashboard & reports
+- [ ] Role-based authentication
+- [ ] Final integration & testing
+- [ ] Deployment
 
 ---
 
-## 🧩 Core Modules
+## 📄 License
 
-### 1. Patient Management
-- Register, search, view, edit patients
-- Tabbed patient profile: Info, Appointments, Prescriptions, Billing
-- Allergy alerts and blood group tracking
-
-### 2. Appointment System
-- Book with real-time slot availability check (AJAX)
-- Conflict detection (no double-booking)
-- Status workflow: Scheduled → Completed / Cancelled
-- Doctor schedule management (per day-of-week)
-
-### 3. Billing Module
-- Dynamic multi-item bill generation
-- Partial payment support with balance tracking
-- Printable invoice (print-optimized layout)
-- CSV export
-
-### 4. Pharmacy Module
-- Medicine inventory with low stock alerts
-- Prescription creation with multiple medicines
-- One-click dispense with automatic stock reduction
-- Expiry date tracking
-
-### 5. Staff Management
-- Doctor and nurse profiles
-- Per-doctor weekly schedule builder
-- User account activation/deactivation
-
-### 6. Admin Dashboard & Reports
-- Live stats: patients, appointments, revenue, low stock
-- 7-day revenue chart (Chart.js)
-- Patient demographics (gender, blood group)
-- Appointment analytics by doctor and status
-- Inventory value and low-stock report
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 🗄️ Database Connection
+<div align="center">
 
-**Windows Authentication (Recommended):**
-```
-mssql+pyodbc://@localhost\SQLEXPRESS/HMS_DB?driver=ODBC+Driver+17+for+SQL+Server&trusted_connection=yes
-```
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=100&section=footer" width="100%"/>
 
-**SQL Authentication (Fallback):**
-Set `DB_USERNAME` and `DB_PASSWORD` in `.env`
+Made with ❤️ by [Muhammad Hammad Asher](https://linkedin.com/in/hammad-asher) & Team
 
----
-
-## 🔧 Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `pyodbc.InterfaceError` | Install ODBC Driver 17 from Microsoft |
-| `Login failed for user` | Check Windows Auth settings or SQL Auth credentials |
-| `Trusted_Connection fails` | Run as the same Windows user that has DB access |
-| Password login fails | Run `generate_hashes.py` and update DB |
-| Templates not found | Ensure you're running from project root |
-
----
-
-## 📝 Production Checklist
-
-- [ ] Change `SECRET_KEY` to a long random string
-- [ ] Change all default passwords  
-- [ ] Set `FLASK_ENV=production` in `.env`
-- [ ] Restrict DB user permissions to HMS_DB only
-- [ ] Set up HTTPS (use nginx + gunicorn)
-- [ ] Configure regular database backups
-- [ ] Remove debug mode (`debug=False` in run.py)
+</div>
