@@ -73,14 +73,18 @@
                         <div class="item-total fw-medium pt-1 mono-text">0.00</div>
                     </div>
                     <div class="col-md-1">
+                        {% if not is_patient_user %}
                         <button type="button" class="btn btn-sm btn-outline-danger remove-item" style="display:none"><i class="bi bi-trash"></i></button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
 
+            {% if not is_patient_user %}
             <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="addItem()">
                 <i class="bi bi-plus-circle me-1"></i>Add Item
             </button>
+            {% endif %}
 
             <div class="border-top mt-4 pt-3 d-flex justify-content-between align-items-center">
                 <div class="fs-5 fw-bold">Grand Total: $<span id="grandTotal">0.00</span></div>
@@ -109,6 +113,9 @@ function updateTotals() {
 }
 
 function addItem() {
+    if ({{ 'true' if is_patient_user else 'false' }}) {
+        return;
+    }
     const container = document.getElementById('billItems');
     const first = container.querySelector('.bill-item-row');
     const clone = first.cloneNode(true);
@@ -125,5 +132,6 @@ function addItem() {
 }
 
 document.querySelectorAll('.qty-input, .price-input').forEach(inp => inp.addEventListener('input', updateTotals));
+updateTotals();
 </script>
 {% endblock %}

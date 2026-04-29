@@ -103,6 +103,12 @@ def generate_bill():
                 flash('Please add at least one item.', 'danger')
                 raise ValueError("No items")
 
+            if patient_user:
+                non_empty_descriptions = [d for d in descriptions if d and d.strip()]
+                if len(non_empty_descriptions) > 1:
+                    flash('Patients can only generate a bill with one item.', 'danger')
+                    return redirect(url_for('billing.generate_bill'))
+
             bill = Bill(
                 patient_id=patient_id,
                 appointment_id=int(appointment_id) if appointment_id else None,

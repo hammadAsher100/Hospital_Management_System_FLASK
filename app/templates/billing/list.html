@@ -28,7 +28,7 @@
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
-                    <tr><th>Bill #</th><th>Patient</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Actions</th></tr>
+                    <tr><th>Bill #</th><th>Patient</th><th>Date</th><th>Total</th><th>Paid</th><th>Status</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                 {% for bill in bills.items %}
@@ -38,7 +38,6 @@
                     <td>{{ bill.bill_date.strftime('%d %b %Y') }}</td>
                     <td class="fw-medium">Rs. {{ "%.2f"|format(bill.total_amount) }}</td>
                     <td class="text-success">Rs. {{ "%.2f"|format(bill.paid_amount) }}</td>
-                    <td class="{{ 'text-danger fw-medium' if bill.get_balance() > 0 else 'text-muted' }}">Rs. {{ "%.2f"|format(bill.get_balance()) }}</td>
                     <td><span class="badge bg-{{ bill.status_badge }}">{{ bill.status.title() }}</span></td>
                     <td>
                         <div class="btn-group btn-group-sm">
