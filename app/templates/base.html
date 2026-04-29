@@ -67,11 +67,6 @@
                 </a>
             </li>
             <li>
-                <a href="{{ url_for('staff.doctor_appointments') }}" class="nav-link {% if endpoint == 'staff.doctor_appointments' %}active{% endif %}">
-                    <i class="bi bi-calendar-week"></i><span>My Appointments</span>
-                </a>
-            </li>
-            <li>
                 <a href="{{ url_for('appointments.list_appointments') }}" class="nav-link {% if endpoint == 'appointments.list_appointments' %}active{% endif %}">
                     <i class="bi bi-list-check"></i><span>All Appointments</span>
                 </a>

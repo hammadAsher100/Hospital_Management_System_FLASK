@@ -45,7 +45,7 @@ def list_appointments():
 
 @appointments_bp.route('/book', methods=['GET', 'POST'])
 @login_required
-@role_required('admin', 'doctor', 'nurse')
+@role_required('admin', 'nurse')
 def book_appointment():
     if request.method == 'POST':
         patient_id = request.form.get('patient_id', type=int)

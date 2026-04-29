@@ -218,44 +218,8 @@ def doctor_dashboard():
 @staff_bp.route('/doctor/appointments')
 @login_required
 def doctor_appointments():
-    """View all appointments for the current doctor"""
-    if not current_user.is_doctor():
-        flash('You do not have access to this page.', 'danger')
-        return redirect(url_for('auth.login'))
-    
-    doctor = Doctor.query.filter_by(user_id=current_user.user_id).first()
-    if not doctor:
-        flash('Doctor profile not found.', 'danger')
-        return redirect(url_for('auth.logout'))
-    
-    status_filter = request.args.get('status', '')
-    date_filter = request.args.get('date', '')
-    page = request.args.get('page', 1, type=int)
-    
-    query = Appointment.query.filter_by(doctor_id=doctor.doctor_id)
-    
-    if status_filter:
-        query = query.filter(Appointment.status == status_filter)
-    
-    if date_filter:
-        try:
-            filter_date = datetime.strptime(date_filter, '%Y-%m-%d').date()
-            query = query.filter(Appointment.appointment_date == filter_date)
-        except ValueError:
-            pass
-    
-    appointments = query.order_by(
-        Appointment.appointment_date.desc(),
-        Appointment.appointment_time.desc()
-    ).paginate(page=page, per_page=10, error_out=False)
-    
-    return render_template(
-        'staff/doctor_appointments.html',
-        doctor=doctor,
-        appointments=appointments,
-        status_filter=status_filter,
-        date_filter=date_filter
-    )
+    """Legacy endpoint retained for compatibility; use shared appointments page."""
+    return redirect(url_for('appointments.list_appointments'))
 
 
 # ============================================================================
