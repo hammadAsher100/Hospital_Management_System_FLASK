@@ -7,6 +7,7 @@ from app.models.appointment import Appointment
 from app.models.doctor import Doctor, DoctorSchedule
 from app.utils import role_required
 from datetime import datetime, date, timedelta
+from sqlalchemy import or_
 
 patients_bp = Blueprint('patients', __name__)
 
@@ -222,8 +223,14 @@ def book_appointment():
             db.session.rollback()
             flash(f'Error booking appointment: {str(e)}', 'danger')
 
-    # Get all available doctors
-    doctors = Doctor.query.filter_by(availability_status=True).order_by(Doctor.last_name).all()
+    # Get all active doctors unless explicitly marked unavailable.
+    doctors = (
+        Doctor.query.join(User, Doctor.user_id == User.user_id)
+        .filter(User.is_active == True)
+        .filter(or_(Doctor.availability_status == True, Doctor.availability_status.is_(None)))
+        .order_by(Doctor.last_name)
+        .all()
+    )
     min_booking_date = date.today() + timedelta(days=1)
     max_booking_date = date.today() + timedelta(days=90)
     

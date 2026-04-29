@@ -36,8 +36,8 @@
                     <td class="mono-text">#{{ bill.bill_id }}</td>
                     <td><a href="{{ url_for('patients.view_patient', id=bill.patient_id) }}" class="text-decoration-none fw-medium">{{ bill.patient.full_name }}</a></td>
                     <td>{{ bill.bill_date.strftime('%d %b %Y') }}</td>
-                    <td class="fw-medium">Rs. {{ "%.2f"|format(bill.total_amount) }}</td>
-                    <td class="text-success">Rs. {{ "%.2f"|format(bill.paid_amount) }}</td>
+                    <td class="fw-medium">$ {{ "%.2f"|format(bill.total_amount) }}</td>
+                    <td class="text-success">$ {{ "%.2f"|format(bill.paid_amount) }}</td>
                     <td><span class="badge bg-{{ bill.status_badge }}">{{ bill.status.title() }}</span></td>
                     <td>
                         <div class="btn-group btn-group-sm">

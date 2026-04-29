@@ -4,8 +4,10 @@ from app import db
 from app.models.appointment import Appointment
 from app.models.patient import Patient
 from app.models.doctor import Doctor, DoctorSchedule
+from app.models.user import User
 from app.utils import role_required
 from datetime import datetime, date, timedelta
+from sqlalchemy import or_
 
 appointments_bp = Blueprint('appointments', __name__)
 
@@ -78,7 +80,13 @@ def book_appointment():
             flash(f'Error booking appointment: {str(e)}', 'danger')
 
     patients = Patient.query.order_by(Patient.last_name).all()
-    doctors = Doctor.query.filter_by(availability_status=True).order_by(Doctor.last_name).all()
+    doctors = (
+        Doctor.query.join(User, Doctor.user_id == User.user_id)
+        .filter(User.is_active == True)
+        .filter(or_(Doctor.availability_status == True, Doctor.availability_status.is_(None)))
+        .order_by(Doctor.last_name)
+        .all()
+    )
     preselect_patient = request.args.get('patient_id', type=int)
     return render_template('appointments/book.html', patients=patients, doctors=doctors,
                            preselect_patient=preselect_patient)

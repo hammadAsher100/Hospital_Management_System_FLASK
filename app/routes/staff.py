@@ -6,6 +6,8 @@ from app.models.user import User
 from app.models.appointment import Appointment
 from app.utils import role_required, admin_required
 from datetime import datetime, date, timedelta
+from decimal import Decimal, InvalidOperation
+from sqlalchemy.exc import IntegrityError
 
 staff_bp = Blueprint('staff', __name__)
 
@@ -31,10 +33,35 @@ def list_doctors():
 def add_doctor():
     if request.method == 'POST':
         try:
+            first_name = request.form['first_name'].strip()
+            last_name = request.form['last_name'].strip()
+            username = request.form['username'].strip()
+            email = request.form['email'].strip()
+            specialization = request.form['specialization'].strip()
+            phone = (request.form.get('phone') or '').strip() or None
+            raw_fee = (request.form.get('consultation_fee') or '0').strip()
+            consultation_fee = Decimal(raw_fee or '0')
+
+            if not username or not email or not first_name or not last_name or not specialization:
+                flash('Please fill in all required fields.', 'danger')
+                return render_template('staff/doctor_form.html', doctor=None)
+            if len(username) > 50:
+                flash('Username is too long (max 50 characters).', 'danger')
+                return render_template('staff/doctor_form.html', doctor=None)
+            if len(email) > 100:
+                flash('Email is too long (max 100 characters).', 'danger')
+                return render_template('staff/doctor_form.html', doctor=None)
+            if len(first_name) > 50 or len(last_name) > 50:
+                flash('First/Last name is too long (max 50 characters each).', 'danger')
+                return render_template('staff/doctor_form.html', doctor=None)
+            if len(specialization) > 100:
+                flash('Specialization is too long (max 100 characters).', 'danger')
+                return render_template('staff/doctor_form.html', doctor=None)
+
             user = User(
-                username=request.form['username'],
-                email=request.form['email'],
-                full_name=f"{request.form['first_name']} {request.form['last_name']}",
+                username=username,
+                email=email,
+                full_name=f"{first_name} {last_name}",
                 role='doctor'
             )
             user.set_password(request.form['password'])
@@ -43,18 +70,43 @@ def add_doctor():
 
             doctor = Doctor(
                 user_id=user.user_id,
-                first_name=request.form['first_name'],
-                last_name=request.form['last_name'],
-                specialization=request.form['specialization'],
-                phone=request.form.get('phone'),
-                email=request.form['email'],
-                consultation_fee=request.form.get('consultation_fee', 0),
+                first_name=first_name,
+                last_name=last_name,
+                specialization=specialization,
+                phone=phone,
+                email=email,
+                consultation_fee=consultation_fee,
                 availability_status=True
             )
             db.session.add(doctor)
             db.session.commit()
             flash(f'Dr. {doctor.full_name} added successfully.', 'success')
             return redirect(url_for('staff.list_doctors'))
+        except InvalidOperation:
+            db.session.rollback()
+            flash('Invalid consultation fee. Please enter a valid number.', 'danger')
+        except IntegrityError as e:
+            db.session.rollback()
+            db_error = str(getattr(e, 'orig', e))
+            db_error_lower = db_error.lower()
+            is_unique_violation = (
+                'unique key' in db_error_lower or
+                'duplicate key' in db_error_lower or
+                'uq__users__username' in db_error_lower or
+                'uq__users__email' in db_error_lower
+            )
+            if is_unique_violation and 'username' in db_error_lower:
+                flash(
+                    f'Username "{username}" already exists in users. Please use a different username.',
+                    'danger'
+                )
+            elif is_unique_violation and 'email' in db_error_lower:
+                flash(
+                    f'Email "{email}" already exists in users. Please use a different email.',
+                    'danger'
+                )
+            else:
+                flash(f'Doctor could not be added due to a database constraint: {db_error}', 'danger')
         except Exception as e:
             db.session.rollback()
             flash(f'Error adding doctor: {str(e)}', 'danger')
