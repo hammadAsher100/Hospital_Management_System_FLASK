@@ -4,114 +4,120 @@
 
 {% block content %}
 <div class="container-fluid py-4">
-    <!-- Header -->
     <div class="row mb-4">
         <div class="col-12">
             <h1 class="h2 mb-0"><i class="bi bi-person me-2 text-primary"></i>My Profile</h1>
-            <p class="text-muted mb-0">View and manage your personal information</p>
+            <p class="text-muted mb-0">Update your profile details and medical information</p>
         </div>
     </div>
 
     <div class="row">
-        <div class="col-lg-8 mx-auto">
+        <div class="col-lg-10 mx-auto">
             <div class="card hms-card">
                 <div class="card-body p-4">
-                    <!-- Personal Information -->
-                    <div class="profile-section mb-4">
-                        <h5 class="mb-3"><i class="bi bi-person-check me-2"></i>Personal Information</h5>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <label class="info-label">Full Name</label>
-                                <p class="info-value">{{ patient.full_name }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Email</label>
-                                <p class="info-value">{{ user.email }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Phone</label>
-                                <p class="info-value">{{ patient.phone }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Date of Birth</label>
-                                <p class="info-value">{{ patient.dob.strftime('%B %d, %Y') }} (Age: {{ patient.age }})</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Gender</label>
-                                <p class="info-value">{{ patient.gender }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Address</label>
-                                <p class="info-value">{{ patient.address or 'Not provided' }}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    <!-- Medical Information -->
-                    <div class="profile-section mb-4">
-                        <h5 class="mb-3"><i class="bi bi-hospital me-2"></i>Medical Information</h5>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <label class="info-label">Blood Group</label>
-                                <p class="info-value">{{ patient.blood_group or 'Not specified' }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Allergies</label>
-                                <p class="info-value">{{ patient.allergies or 'None reported' }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Emergency Contact</label>
-                                <p class="info-value">{{ patient.emergency_contact or 'Not provided' }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Registration Date</label>
-                                <p class="info-value">{{ patient.registration_date.strftime('%B %d, %Y') }}</p>
+                    <form method="POST">
+                        <div class="profile-section mb-4">
+                            <h5 class="mb-3"><i class="bi bi-person-check me-2"></i>Personal Information</h5>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Full Name</label>
+                                    <input type="text" class="form-control hms-input" value="{{ patient.full_name }}" disabled>
+                                    <small class="text-muted">Name cannot be edited from patient portal.</small>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Email</label>
+                                    <input type="email" name="email" class="form-control hms-input" value="{{ patient.email or '' }}">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Phone</label>
+                                    <input type="text" name="phone" class="form-control hms-input" value="{{ patient.phone }}" required>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Date of Birth</label>
+                                    <input type="text" class="form-control hms-input" value="{{ patient.dob.strftime('%B %d, %Y') }} (Age: {{ patient.age }})" disabled>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Gender</label>
+                                    <input type="text" class="form-control hms-input" value="{{ patient.gender }}" disabled>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Address</label>
+                                    <textarea name="address" rows="3" class="form-control hms-input">{{ patient.address or '' }}</textarea>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <hr>
+                        <hr>
 
-                    <!-- Account Information -->
-                    <div class="profile-section">
-                        <h5 class="mb-3"><i class="bi bi-shield-lock me-2"></i>Account Information</h5>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <label class="info-label">Username</label>
-                                <p class="info-value">{{ user.username }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Account Status</label>
-                                <p class="info-value">
-                                    {% if user.is_active %}
-                                        <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                        <span class="badge bg-danger">Inactive</span>
-                                    {% endif %}
-                                </p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Last Login</label>
-                                <p class="info-value">{{ user.last_login.strftime('%B %d, %Y at %H:%M') if user.last_login else 'Never' }}</p>
-                            </div>
-                            <div class="info-item">
-                                <label class="info-label">Member Since</label>
-                                <p class="info-value">{{ user.created_at.strftime('%B %d, %Y') }}</p>
+                        <div class="profile-section mb-4">
+                            <h5 class="mb-3"><i class="bi bi-hospital me-2"></i>Medical Information</h5>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Blood Group</label>
+                                    <select name="blood_group" class="form-select hms-input">
+                                        <option value="">Select blood group</option>
+                                        {% for bg in ['A+','A-','B+','B-','AB+','AB-','O+','O-'] %}
+                                        <option value="{{ bg }}" {% if patient.blood_group == bg %}selected{% endif %}>{{ bg }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Allergies</label>
+                                    <textarea name="allergies" rows="3" class="form-control hms-input">{{ patient.allergies or '' }}</textarea>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Emergency Contact</label>
+                                    <input type="text" name="emergency_contact" class="form-control hms-input" value="{{ patient.emergency_contact or '' }}">
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Registration Date</label>
+                                    <input type="text" class="form-control hms-input" value="{{ patient.registration_date.strftime('%B %d, %Y') }}" disabled>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Action Buttons -->
-                    <div class="mt-4 pt-4 border-top d-flex gap-2">
-                        <a href="{{ url_for('auth.change_password') }}" class="btn btn-outline-primary">
-                            <i class="bi bi-key me-2"></i>Change Password
-                        </a>
-                        <a href="{{ url_for('patients.patient_dashboard') }}" class="btn btn-outline-secondary">
-                            <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
-                        </a>
-                    </div>
+                        <hr>
+
+                        <div class="profile-section">
+                            <h5 class="mb-3"><i class="bi bi-shield-lock me-2"></i>Account Information</h5>
+                            <div class="info-grid">
+                                <div class="info-item">
+                                    <label class="info-label">Username</label>
+                                    <input type="text" class="form-control hms-input" value="{{ user.username }}" disabled>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Account Status</label>
+                                    <p class="info-value">
+                                        {% if user.is_active %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Inactive</span>
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Last Login</label>
+                                    <input type="text" class="form-control hms-input" value="{{ user.last_login.strftime('%B %d, %Y at %H:%M') if user.last_login else 'Never' }}" disabled>
+                                </div>
+                                <div class="info-item">
+                                    <label class="info-label">Member Since</label>
+                                    <input type="text" class="form-control hms-input" value="{{ user.created_at.strftime('%B %d, %Y') }}" disabled>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-top d-flex gap-2">
+                            <button type="submit" class="btn btn-hms-primary">
+                                <i class="bi bi-check2-circle me-2"></i>Save Changes
+                            </button>
+                            <a href="{{ url_for('auth.change_password') }}" class="btn btn-outline-primary">
+                                <i class="bi bi-key me-2"></i>Change Password
+                            </a>
+                            <a href="{{ url_for('patients.patient_dashboard') }}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Back to Dashboard
+                            </a>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>

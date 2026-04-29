@@ -160,6 +160,9 @@ def logout():
 @auth_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
+    if current_user.is_patient():
+        return redirect(url_for('patients.patient_profile'))
+
     if request.method == 'POST':
         current_user.full_name = request.form.get('full_name', current_user.full_name)
         current_user.email = request.form.get('email', current_user.email)

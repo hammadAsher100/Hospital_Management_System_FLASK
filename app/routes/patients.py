@@ -329,10 +329,10 @@ def cancel_patient_appointment(id):
     return redirect(url_for('patients.my_appointments'))
 
 
-@patients_bp.route('/profile')
+@patients_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
 def patient_profile():
-    """View patient profile"""
+    """View and update patient profile"""
     if not current_user.is_patient():
         flash('You do not have access to this page.', 'danger')
         return redirect(url_for('auth.login'))
@@ -340,5 +340,24 @@ def patient_profile():
     patient = _get_current_patient()
     if not patient:
         return redirect(url_for('auth.logout'))
+
+    if request.method == 'POST':
+        try:
+            patient.email = request.form.get('email', '').strip() or None
+            patient.phone = request.form.get('phone', '').strip()
+            patient.address = request.form.get('address', '').strip() or None
+            patient.emergency_contact = request.form.get('emergency_contact', '').strip() or None
+            patient.blood_group = request.form.get('blood_group', '').strip() or None
+            patient.allergies = request.form.get('allergies', '').strip() or None
+
+            # Keep User and Patient email values in sync for patient accounts.
+            current_user.email = patient.email
+
+            db.session.commit()
+            flash('My Profile updated successfully.', 'success')
+            return redirect(url_for('patients.patient_profile'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error updating profile: {str(e)}', 'danger')
     
     return render_template('patients/patient_profile.html', patient=patient, user=current_user)
