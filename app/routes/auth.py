@@ -4,6 +4,7 @@ from app import db
 from app.models.user import User
 from app.models.patient import Patient
 from datetime import datetime, date
+from sqlalchemy.exc import IntegrityError
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -70,14 +71,6 @@ def signup():
             flash('Password must be at least 6 characters.', 'danger')
             return render_template('auth/signup.html')
         
-        if User.query.filter_by(username=username).first():
-            flash('Username already exists.', 'danger')
-            return render_template('auth/signup.html')
-        
-        if User.query.filter_by(email=email).first():
-            flash('Email already exists.', 'danger')
-            return render_template('auth/signup.html')
-        
         try:
             dob_value = datetime.strptime(dob, '%Y-%m-%d').date()
         except ValueError:
@@ -115,6 +108,16 @@ def signup():
             
             flash('Account created successfully! Please log in.', 'success')
             return redirect(url_for('auth.login'))
+        except IntegrityError as e:
+            db.session.rollback()
+            error_text = str(e.orig).lower() if getattr(e, 'orig', None) else str(e).lower()
+            if 'username' in error_text:
+                flash('Username already exists.', 'danger')
+            elif 'email' in error_text:
+                flash('Email already exists.', 'danger')
+            else:
+                flash('Username or email already exists.', 'danger')
+            return render_template('auth/signup.html')
         except Exception as e:
             db.session.rollback()
             flash(f'Error creating account: {str(e)}', 'danger')
