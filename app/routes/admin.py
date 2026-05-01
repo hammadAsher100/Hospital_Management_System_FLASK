@@ -20,6 +20,26 @@ import seaborn as sns
 
 admin_bp = Blueprint('admin', __name__)
 
+HMS_COLORS = {
+    'primary': '#4378f4',
+    'primary_light': '#dbe7ff',
+    'success': '#10b981',
+    'danger': '#ef4444',
+    'warning': '#f59e0b',
+    'purple': '#8b5cf6',
+    'teal': '#06b6d4',
+    'slate': '#334155'
+}
+
+HMS_PALETTE = [
+    HMS_COLORS['primary'],
+    HMS_COLORS['success'],
+    HMS_COLORS['purple'],
+    HMS_COLORS['warning'],
+    HMS_COLORS['teal'],
+    HMS_COLORS['danger']
+]
+
 
 def _fig_to_base64(fig):
     buffer = io.BytesIO()
@@ -100,42 +120,57 @@ def report_patients():
     blood_df = pd.DataFrame(by_blood, columns=['blood_group', 'count'])
     monthly_df = pd.DataFrame(monthly_reg, columns=['yr', 'mo', 'cnt'])
 
-    sns.set_theme(style='whitegrid')
+    sns.set_theme(style='whitegrid', context='talk')
 
     fig_gender, ax_gender = plt.subplots(figsize=(5, 4))
     if not gender_df.empty and gender_df['count'].sum() > 0:
-        ax_gender.pie(
+        labels = gender_df['gender'].fillna('Unknown')
+        wedges, _texts, _autotexts = ax_gender.pie(
             gender_df['count'],
-            labels=gender_df['gender'].fillna('Unknown'),
+            labels=labels,
             autopct='%1.1f%%',
-            startangle=140
+            startangle=130,
+            colors=HMS_PALETTE[:len(gender_df)],
+            wedgeprops={'width': 0.46, 'edgecolor': 'white', 'linewidth': 2},
+            textprops={'fontsize': 10, 'color': HMS_COLORS['slate']}
         )
+        for w in wedges:
+            w.set_alpha(0.95)
     else:
-        ax_gender.text(0.5, 0.5, 'No data', ha='center', va='center')
-    ax_gender.set_title('Patients by Gender')
+        ax_gender.text(0.5, 0.5, 'No data', ha='center', va='center', color=HMS_COLORS['slate'])
+    ax_gender.set_title('Patients by Gender', fontsize=13, fontweight='bold', color=HMS_COLORS['slate'])
     gender_chart = _fig_to_base64(fig_gender)
 
     fig_blood, ax_blood = plt.subplots(figsize=(6, 4))
     if not blood_df.empty:
         blood_df['blood_group'] = blood_df['blood_group'].fillna('Unknown')
-        sns.barplot(data=blood_df, x='blood_group', y='count', ax=ax_blood, color='#ef4444')
+        blood_df = blood_df.sort_values('count', ascending=False)
+        sns.barplot(data=blood_df, x='blood_group', y='count', ax=ax_blood, palette='Reds_r')
         ax_blood.set_ylabel('Patients')
         ax_blood.set_xlabel('Blood Group')
+        for container in ax_blood.containers:
+            ax_blood.bar_label(container, padding=3, fontsize=9, color=HMS_COLORS['slate'])
     else:
-        ax_blood.text(0.5, 0.5, 'No data', ha='center', va='center')
-    ax_blood.set_title('Patients by Blood Group')
+        ax_blood.text(0.5, 0.5, 'No data', ha='center', va='center', color=HMS_COLORS['slate'])
+    ax_blood.set_title('Patients by Blood Group', fontsize=13, fontweight='bold', color=HMS_COLORS['slate'])
+    ax_blood.grid(axis='x', visible=False)
     blood_chart = _fig_to_base64(fig_blood)
 
     fig_monthly, ax_monthly = plt.subplots(figsize=(7, 4))
     if not monthly_df.empty:
         monthly_df['period'] = monthly_df.apply(lambda r: f"{int(r['yr'])}-{int(r['mo']):02d}", axis=1)
-        sns.lineplot(data=monthly_df, x='period', y='cnt', marker='o', ax=ax_monthly, color='#4378f4')
+        x_pos = list(range(len(monthly_df)))
+        ax_monthly.plot(x_pos, monthly_df['cnt'], marker='o', linewidth=2.6, color=HMS_COLORS['primary'])
+        ax_monthly.fill_between(x_pos, monthly_df['cnt'], color=HMS_COLORS['primary_light'], alpha=0.5)
+        ax_monthly.set_xticks(x_pos)
+        ax_monthly.set_xticklabels(monthly_df['period'])
         ax_monthly.set_ylabel('Registrations')
         ax_monthly.set_xlabel('Month')
         ax_monthly.tick_params(axis='x', rotation=45)
     else:
-        ax_monthly.text(0.5, 0.5, 'No data', ha='center', va='center')
-    ax_monthly.set_title('Monthly Patient Registrations')
+        ax_monthly.text(0.5, 0.5, 'No data', ha='center', va='center', color=HMS_COLORS['slate'])
+    ax_monthly.set_title('Monthly Patient Registrations', fontsize=13, fontweight='bold', color=HMS_COLORS['slate'])
+    ax_monthly.grid(axis='x', visible=False)
     monthly_chart = _fig_to_base64(fig_monthly)
 
     return render_template(
@@ -201,17 +236,21 @@ def report_revenue():
         ]
 
     revenue_df = pd.DataFrame(normalized_data, columns=['period', 'total', 'paid'])
-    sns.set_theme(style='whitegrid')
+    sns.set_theme(style='whitegrid', context='talk')
     fig_revenue, ax_revenue = plt.subplots(figsize=(9, 4))
     if not revenue_df.empty:
-        ax_revenue.bar(revenue_df['period'], revenue_df['total'], label='Billed', alpha=0.5, color='#4378f4')
-        ax_revenue.plot(revenue_df['period'], revenue_df['paid'], label='Collected', marker='o', color='#10b981')
-        ax_revenue.tick_params(axis='x', rotation=45)
-        ax_revenue.legend()
+        x_pos = list(range(len(revenue_df)))
+        ax_revenue.bar(x_pos, revenue_df['total'], label='Billed', alpha=0.75, color=HMS_COLORS['primary'], edgecolor='white', linewidth=1.1)
+        ax_revenue.plot(x_pos, revenue_df['paid'], label='Collected', marker='o', linewidth=2.6, color=HMS_COLORS['success'])
+        ax_revenue.fill_between(x_pos, revenue_df['paid'], color='#d1fae5', alpha=0.6)
+        ax_revenue.set_xticks(x_pos)
+        ax_revenue.set_xticklabels(revenue_df['period'], rotation=45, ha='right')
+        ax_revenue.legend(frameon=False, loc='upper left')
     else:
-        ax_revenue.text(0.5, 0.5, 'No revenue data', ha='center', va='center')
-    ax_revenue.set_title(f'Revenue Trend ({period.title()})')
+        ax_revenue.text(0.5, 0.5, 'No revenue data', ha='center', va='center', color=HMS_COLORS['slate'])
+    ax_revenue.set_title(f'Revenue Trend ({period.title()})', fontsize=13, fontweight='bold', color=HMS_COLORS['slate'])
     ax_revenue.set_ylabel('Amount (Rs.)')
+    ax_revenue.grid(axis='x', visible=False)
     revenue_chart = _fig_to_base64(fig_revenue)
 
     return render_template(
@@ -259,29 +298,41 @@ def report_appointments():
     if not doctor_df.empty:
         doctor_df['doctor'] = 'Dr. ' + doctor_df['first_name'] + ' ' + doctor_df['last_name']
 
-    sns.set_theme(style='whitegrid')
+    sns.set_theme(style='whitegrid', context='talk')
     fig_status, ax_status = plt.subplots(figsize=(5, 4))
     if not status_df.empty and status_df['count'].sum() > 0:
+        status_labels = status_df['status'].str.title()
+        status_colors = [
+            HMS_COLORS['primary'] if s == 'Scheduled' else HMS_COLORS['success'] if s == 'Completed' else HMS_COLORS['danger']
+            for s in status_labels
+        ]
         ax_status.pie(
             status_df['count'],
-            labels=status_df['status'].str.title(),
+            labels=status_labels,
             autopct='%1.1f%%',
-            startangle=140
+            startangle=120,
+            colors=status_colors,
+            wedgeprops={'width': 0.45, 'edgecolor': 'white', 'linewidth': 2},
+            textprops={'fontsize': 10, 'color': HMS_COLORS['slate']}
         )
     else:
-        ax_status.text(0.5, 0.5, 'No data', ha='center', va='center')
-    ax_status.set_title('Appointments by Status')
+        ax_status.text(0.5, 0.5, 'No data', ha='center', va='center', color=HMS_COLORS['slate'])
+    ax_status.set_title('Appointments by Status', fontsize=13, fontweight='bold', color=HMS_COLORS['slate'])
     status_chart = _fig_to_base64(fig_status)
 
     fig_doctor, ax_doctor = plt.subplots(figsize=(8, 4))
     if not doctor_df.empty:
-        sns.barplot(data=doctor_df, x='doctor', y='count', ax=ax_doctor, color='#4378f4')
+        doctor_df = doctor_df.sort_values('count', ascending=False)
+        sns.barplot(data=doctor_df, x='doctor', y='count', ax=ax_doctor, palette='Blues')
         ax_doctor.tick_params(axis='x', rotation=45)
         ax_doctor.set_ylabel('Appointments')
         ax_doctor.set_xlabel('Doctor')
+        for container in ax_doctor.containers:
+            ax_doctor.bar_label(container, padding=3, fontsize=9, color=HMS_COLORS['slate'])
     else:
-        ax_doctor.text(0.5, 0.5, 'No data', ha='center', va='center')
-    ax_doctor.set_title('Appointments by Doctor')
+        ax_doctor.text(0.5, 0.5, 'No data', ha='center', va='center', color=HMS_COLORS['slate'])
+    ax_doctor.set_title('Appointments by Doctor', fontsize=13, fontweight='bold', color=HMS_COLORS['slate'])
+    ax_doctor.grid(axis='x', visible=False)
     doctor_chart = _fig_to_base64(fig_doctor)
 
     return render_template(

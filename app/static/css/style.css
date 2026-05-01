@@ -26,6 +26,8 @@
   --font-mono: 'DM Mono', 'Fira Code', monospace;
   --radius: 12px;
   --radius-sm: 8px;
+  --transition-base: 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: 140ms ease;
 }
 
 /* ── Base ──────────────────────────────────────────────────── */
@@ -33,11 +35,15 @@
 
 body {
   font-family: var(--font-main);
-  background: var(--bg-light);
+  background:
+    radial-gradient(circle at 10% 10%, rgba(67, 120, 244, 0.07) 0, transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(14, 165, 233, 0.06) 0, transparent 40%),
+    var(--bg-light);
   color: var(--text-primary);
   margin: 0;
   font-size: 14px;
   line-height: 1.6;
+  letter-spacing: 0.01em;
 }
 
 .mono-text { font-family: var(--font-mono); }
@@ -54,7 +60,8 @@ body {
   z-index: 1000;
   overflow-y: auto;
   overflow-x: hidden;
-  transition: transform 0.25s ease;
+  box-shadow: 10px 0 32px rgba(15, 23, 42, 0.24);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
 }
 
 .sidebar-brand {
@@ -73,6 +80,7 @@ body {
   color: #fff;
   font-size: 18px;
   flex-shrink: 0;
+  box-shadow: 0 10px 24px rgba(67, 120, 244, 0.35);
 }
 
 .brand-name {
@@ -147,7 +155,7 @@ body {
   text-decoration: none;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
   margin-bottom: 2px;
 }
 
@@ -161,12 +169,13 @@ body {
 .sidebar-nav li .nav-link:hover {
   background: rgba(255,255,255,0.08);
   color: #fff;
+  transform: translateX(2px);
 }
 
 .sidebar-nav li .nav-link.active {
   background: var(--primary);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(67,120,244,0.4);
+  box-shadow: 0 8px 18px rgba(67,120,244,0.35);
 }
 
 .sidebar-nav li .nav-link.text-danger-soft {
@@ -189,8 +198,9 @@ body {
 /* ── Topbar ────────────────────────────────────────────────── */
 .topbar {
   height: var(--topbar-height);
-  background: #fff;
-  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.65);
+  backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   padding: 0 24px;
@@ -208,11 +218,14 @@ body {
   cursor: pointer;
   padding: 4px 8px;
   border-radius: var(--radius-sm);
-  transition: background 0.15s;
+  transition: all var(--transition-fast);
   display: none;
 }
 
-.sidebar-toggle:hover { background: var(--bg-light); }
+.sidebar-toggle:hover {
+  background: var(--bg-light);
+  color: var(--primary);
+}
 
 .topbar-title {
   font-size: 16px;
@@ -239,10 +252,13 @@ body {
   text-decoration: none;
   padding: 4px;
   border-radius: 6px;
-  transition: color 0.15s;
+  transition: all var(--transition-fast);
 }
 
-.topbar-logout:hover { color: var(--danger); }
+.topbar-logout:hover {
+  color: var(--danger);
+  background: #fee2e2;
+}
 
 /* ── Flash Messages ────────────────────────────────────────── */
 .flash-container { padding: 12px 24px 0; }
@@ -251,6 +267,7 @@ body {
   border-radius: var(--radius-sm);
   border: none;
   font-size: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
 }
 
 /* ── Page Content ──────────────────────────────────────────── */
@@ -258,10 +275,17 @@ body {
 
 /* ── Cards ─────────────────────────────────────────────────── */
 .hms-card {
-  border: 1px solid var(--border);
+  border: 1px solid rgba(226, 232, 240, 0.8);
   border-radius: var(--radius);
-  box-shadow: var(--card-shadow);
-  background: #fff;
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.95);
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+
+.hms-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.1);
+  border-color: #dbe7ff;
 }
 
 .hms-card-header {
@@ -284,6 +308,13 @@ body {
   position: relative;
   overflow: hidden;
   border: 1px solid transparent;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
 }
 
 .stat-card::before {
@@ -321,10 +352,13 @@ body {
   text-decoration: none;
   opacity: 0.7;
   color: inherit;
-  transition: opacity 0.15s;
+  transition: all var(--transition-fast);
 }
 
-.stat-link:hover { opacity: 1; }
+.stat-link:hover {
+  opacity: 1;
+  transform: translateX(1px);
+}
 
 /* ── Buttons ───────────────────────────────────────────────── */
 .btn-hms-primary {
@@ -335,7 +369,7 @@ body {
   font-weight: 600;
   font-size: 14px;
   padding: 8px 16px;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
 }
 
 .btn-hms-primary:hover {
@@ -351,7 +385,8 @@ body {
   border-radius: var(--radius-sm);
   font-family: var(--font-main);
   font-size: 14px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+  background: #fff;
 }
 
 .hms-input:focus {
@@ -369,6 +404,9 @@ body {
 .table { font-size: 14px; }
 .table th { font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
 .table td { vertical-align: middle; }
+.table > :not(caption) > * > * { padding: 0.85rem 0.75rem; }
+.table tbody tr { transition: background-color var(--transition-fast); }
+.table tbody tr:hover { background-color: #f8fbff; }
 
 /* ── Role Badges ───────────────────────────────────────────── */
 .badge-role {
@@ -379,12 +417,13 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  border: 1px solid transparent;
 }
 
-.badge-role-admin { background: #fef3c7; color: #92400e; }
-.badge-role-doctor { background: #dbeafe; color: #1e40af; }
-.badge-role-nurse { background: #d1fae5; color: #065f46; }
-.badge-role-billing { background: #ede9fe; color: #5b21b6; }
+.badge-role-admin { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+.badge-role-doctor { background: #dbeafe; color: #1e40af; border-color: #93c5fd; }
+.badge-role-nurse { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.badge-role-billing { background: #ede9fe; color: #5b21b6; border-color: #c4b5fd; }
 
 /* ── Empty State ───────────────────────────────────────────── */
 .empty-state {
@@ -555,6 +594,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 48px 40px;
+  box-shadow: -20px 0 38px rgba(15, 23, 42, 0.12);
 }
 
 .login-card { width: 100%; max-width: 380px; }
@@ -589,6 +629,59 @@ body {
 
 /* ── Billing Summary ───────────────────────────────────────── */
 .billing-summary { background: var(--bg-light); }
+
+/* ── Report Charts ─────────────────────────────────────────── */
+.report-chart-frame {
+  border: 1px solid #e5ecfb;
+  border-radius: 14px;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 10px 30px rgba(67, 120, 244, 0.08);
+}
+
+.report-chart-image {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid #dde7fb;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+
+.report-chart-canvas-wrap {
+  position: relative;
+  min-height: 320px;
+}
+
+.report-chart-canvas-wrap canvas {
+  max-height: 360px;
+}
+
+/* ── Subtle Motion Utilities ───────────────────────────────── */
+.animate-in {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: hmsFadeSlide 520ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes hmsFadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* ── Print Styles ──────────────────────────────────────────── */
 @media print {
