@@ -41,7 +41,7 @@
                     <dd class="col-7">{{ doctor.email }}</dd>
                     {% endif %}
                     <dt class="col-5 text-muted">Consult Fee</dt>
-                    <dd class="col-7 fw-medium">Rs. {{ "%.2f"|format(doctor.consultation_fee) }}</dd>
+                    <dd class="col-7 fw-medium">${{ "%.2f"|format(doctor.consultation_fee) }}</dd>
                     <dt class="col-5 text-muted">Appointments</dt>
                     <dd class="col-7">{{ doctor.appointments.count() }} total</dd>
                 </dl>

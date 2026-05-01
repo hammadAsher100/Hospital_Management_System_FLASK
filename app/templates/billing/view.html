@@ -36,16 +36,16 @@
                         <tr>
                             <td>{{ item.description }}</td>
                             <td class="text-center">{{ item.quantity }}</td>
-                            <td class="text-end mono-text">Rs. {{ "%.2f"|format(item.unit_price) }}</td>
-                            <td class="text-end mono-text fw-medium">Rs. {{ "%.2f"|format(item.total_price) }}</td>
+                            <td class="text-end mono-text">${{ "%.2f"|format(item.unit_price) }}</td>
+                            <td class="text-end mono-text fw-medium">${{ "%.2f"|format(item.total_price) }}</td>
                         </tr>
                         {% endfor %}
                         </tbody>
                         <tfoot>
-                            <tr class="fw-bold"><td colspan="3" class="text-end">Total</td><td class="text-end mono-text">Rs. {{ "%.2f"|format(bill.total_amount) }}</td></tr>
-                            <tr class="text-success"><td colspan="3" class="text-end">Paid</td><td class="text-end mono-text">Rs. {{ "%.2f"|format(bill.paid_amount) }}</td></tr>
+                            <tr class="fw-bold"><td colspan="3" class="text-end">Total</td><td class="text-end mono-text">${{ "%.2f"|format(bill.total_amount) }}</td></tr>
+                            <tr class="text-success"><td colspan="3" class="text-end">Paid</td><td class="text-end mono-text">${{ "%.2f"|format(bill.paid_amount) }}</td></tr>
                             {% if bill.get_balance() > 0 %}
-                            <tr class="text-danger fw-bold"><td colspan="3" class="text-end">Balance Due</td><td class="text-end mono-text">Rs. {{ "%.2f"|format(bill.get_balance()) }}</td></tr>
+                            <tr class="text-danger fw-bold"><td colspan="3" class="text-end">Balance Due</td><td class="text-end mono-text">${{ "%.2f"|format(bill.get_balance()) }}</td></tr>
                             {% endif %}
                         </tfoot>
                     </table>
@@ -72,17 +72,17 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Total Amount</span>
-                    <span class="fw-bold">Rs. {{ "%.2f"|format(bill.total_amount) }}</span>
+                    <span class="fw-bold">${{ "%.2f"|format(bill.total_amount) }}</span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
                     <span class="text-muted">Amount Paid</span>
-                    <span class="text-success fw-bold">Rs. {{ "%.2f"|format(bill.paid_amount) }}</span>
+                    <span class="text-success fw-bold">${{ "%.2f"|format(bill.paid_amount) }}</span>
                 </div>
                 <hr>
                 <div class="d-flex justify-content-between">
                     <span class="text-muted">Balance Due</span>
                     <span class="fw-bold {{ 'text-danger' if bill.get_balance() > 0 else 'text-success' }}">
-                        Rs. {{ "%.2f"|format(bill.get_balance()) }}
+                        ${{ "%.2f"|format(bill.get_balance()) }}
                     </span>
                 </div>
                 {% if bill.get_balance() > 0 %}
