@@ -99,8 +99,8 @@
                 <td style="color:#9ca3af">{{ loop.index }}</td>
                 <td>{{ item.description }}</td>
                 <td class="num">{{ item.quantity }}</td>
-                <td class="num">Rs. {{ "%.2f"|format(item.unit_price) }}</td>
-                <td class="num" style="font-weight:600">Rs. {{ "%.2f"|format(item.total_price) }}</td>
+                <td class="num">${{ "%.2f"|format(item.unit_price) }}</td>
+                <td class="num" style="font-weight:600">${{ "%.2f"|format(item.total_price) }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -109,21 +109,21 @@
     <div class="totals">
         <div class="total-row grand">
             <span class="label">Total Amount</span>
-            <span class="amount">Rs. {{ "%.2f"|format(bill.total_amount) }}</span>
+            <span class="amount">${{ "%.2f"|format(bill.total_amount) }}</span>
         </div>
         <div class="total-row paid-row">
             <span class="label">Amount Paid</span>
-            <span class="amount">Rs. {{ "%.2f"|format(bill.paid_amount) }}</span>
+            <span class="amount">${{ "%.2f"|format(bill.paid_amount) }}</span>
         </div>
         {% if bill.get_balance() > 0 %}
         <div class="total-row balance">
             <span class="label">Balance Due</span>
-            <span class="amount">Rs. {{ "%.2f"|format(bill.get_balance()) }}</span>
+            <span class="amount">${{ "%.2f"|format(bill.get_balance()) }}</span>
         </div>
         {% else %}
         <div class="total-row paid-row">
             <span class="label">✓ Fully Paid</span>
-            <span class="amount">Rs. 0.00</span>
+            <span class="amount">$0.00</span>
         </div>
         {% endif %}
     </div>

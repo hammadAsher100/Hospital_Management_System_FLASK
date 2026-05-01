@@ -42,7 +42,7 @@
                     </td>
                     <td>{{ med.category or '—' }}</td>
                     <td>{{ med.manufacturer or '—' }}</td>
-                    <td class="mono-text">Rs. {{ "%.2f"|format(med.unit_price) }}</td>
+                    <td class="mono-text">${{ "%.2f"|format(med.unit_price) }}</td>
                     <td>
                         <span class="mono-text fw-medium {{ 'text-danger' if med.stock_quantity == 0 else ('text-warning' if med.is_low_stock() else 'text-success') }}">
                             {{ med.stock_quantity }}

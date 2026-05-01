@@ -249,7 +249,7 @@ def report_revenue():
     else:
         ax_revenue.text(0.5, 0.5, 'No revenue data', ha='center', va='center', color=HMS_COLORS['slate'])
     ax_revenue.set_title(f'Revenue Trend ({period.title()})', fontsize=13, fontweight='bold', color=HMS_COLORS['slate'])
-    ax_revenue.set_ylabel('Amount (Rs.)')
+    ax_revenue.set_ylabel('Amount ($)')
     ax_revenue.grid(axis='x', visible=False)
     revenue_chart = _fig_to_base64(fig_revenue)
 
@@ -269,9 +269,17 @@ def report_revenue():
 def report_inventory():
     all_meds = Medicine.query.order_by(Medicine.stock_quantity).all()
     low_stock = [m for m in all_meds if m.is_low_stock()]
-    by_category = db.session.query(
+    by_category_raw = db.session.query(
         Medicine.category, func.count(), func.sum(Medicine.stock_quantity)
     ).group_by(Medicine.category).all()
+    by_category = [
+        (
+            str(row[0] or 'Uncategorized'),
+            int(row[1] or 0),
+            float(row[2] or 0)
+        )
+        for row in by_category_raw
+    ]
     total_value = db.session.query(
         func.sum(Medicine.unit_price * Medicine.stock_quantity)
     ).scalar() or 0

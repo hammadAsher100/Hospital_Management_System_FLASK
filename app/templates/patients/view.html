@@ -160,9 +160,9 @@
                         <tr>
                             <td class="mono-text">#{{ bill.bill_id }}</td>
                             <td>{{ bill.bill_date.strftime('%d %b %Y') }}</td>
-                            <td>Rs. {{ "%.2f"|format(bill.total_amount) }}</td>
-                            <td>Rs. {{ "%.2f"|format(bill.paid_amount) }}</td>
-                            <td>Rs. {{ "%.2f"|format(bill.get_balance()) }}</td>
+                            <td>${{ "%.2f"|format(bill.total_amount) }}</td>
+                            <td>${{ "%.2f"|format(bill.paid_amount) }}</td>
+                            <td>${{ "%.2f"|format(bill.get_balance()) }}</td>
                             <td><span class="badge bg-{{ bill.status_badge }}">{{ bill.status.title() }}</span></td>
                             <td><a href="{{ url_for('billing.view_bill', id=bill.bill_id) }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a></td>
                         </tr>
