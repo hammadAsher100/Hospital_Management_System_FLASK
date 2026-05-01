@@ -3,6 +3,7 @@
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', function () {
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ── Sidebar Toggle ────────────────────────────────────────
   const sidebarToggle = document.getElementById('sidebarToggle');
@@ -74,23 +75,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // ── Form dirty state warning ──────────────────────────────
-  let formDirty = false;
-  const forms = document.querySelectorAll('form:not([data-no-warn])');
-  forms.forEach(form => {
-    form.querySelectorAll('input, select, textarea').forEach(field => {
-      field.addEventListener('change', () => formDirty = true);
-    });
-    form.addEventListener('submit', () => formDirty = false);
-  });
-
-  window.addEventListener('beforeunload', function (e) {
-    if (formDirty) {
-      e.preventDefault();
-      e.returnValue = '';
-    }
-  });
-
   // ── Date input default to today ───────────────────────────
   document.querySelectorAll('input[type="date"][data-today]').forEach(inp => {
     if (!inp.value) {
@@ -106,6 +90,15 @@ document.addEventListener('DOMContentLoaded', function () {
       form.submit();
     });
   });
+
+  // ── Entrance animation for key UI blocks ──────────────────
+  if (!reducedMotion) {
+    const animatedEls = document.querySelectorAll('.hms-card, .stat-card, .alert, .table-responsive, .empty-state');
+    animatedEls.forEach((el, index) => {
+      el.classList.add('animate-in');
+      el.style.animationDelay = `${Math.min(index * 35, 260)}ms`;
+    });
+  }
 
 });
 

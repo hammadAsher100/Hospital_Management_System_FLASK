@@ -3,84 +3,749 @@
 {% block page_title %}Revenue Reports{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
-    <div>
-        <h3 class="mb-1">Revenue Analytics</h3>
-        <p class="text-muted mb-0">Financial trend, collections, and outstanding balances</p>
-    </div>
-    <form class="d-flex gap-2" method="GET">
-        <select name="period" class="form-select form-select-sm hms-input" onchange="this.form.submit()">
-            <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Monthly</option>
-            <option value="daily" {% if period == 'daily' %}selected{% endif %}>Daily (30 days)</option>
-            <option value="weekly" {% if period == 'weekly' %}selected{% endif %}>Weekly</option>
-        </select>
-    </form>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+  :root {
+    --chart-bg: #0d1117;
+    --chart-surface: #161b22;
+    --chart-border: #21262d;
+    --chart-teal: #2dd4bf;
+    --chart-red: #f87171;
+    --chart-blue: #60a5fa;
+    --chart-amber: #fbbf24;
+    --chart-purple: #a78bfa;
+    --chart-muted: #8b949e;
+    --chart-text: #e6edf3;
+    --tab-active-bg: #1f2937;
+    --tab-hover: #161b22;
+  }
+
+  .rev-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .rev-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 1.6rem;
+    color: black;
+    margin: 0 0 .25rem;
+    letter-spacing: -.02em;
+  }
+
+  .rev-subtitle {
+    font-family: 'DM Mono', monospace;
+    font-size: .75rem;
+    color: var(--chart-muted);
+    margin: 0;
+  }
+
+  .period-select {
+    background: var(--chart-surface);
+    border: 1px solid var(--chart-border);
+    color: var(--chart-text);
+    font-family: 'DM Mono', monospace;
+    font-size: .78rem;
+    padding: .4rem .85rem;
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color .2s;
+  }
+
+  .period-select:focus,
+  .period-select:hover {
+    border-color: var(--chart-teal);
+  }
+
+  /* KPI cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .9rem;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 640px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+  .kpi-card {
+    background: var(--chart-surface);
+    border: 1px solid var(--chart-border);
+    border-radius: 12px;
+    padding: 1.1rem 1.3rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .kpi-card.green::before { background: var(--chart-teal); }
+  .kpi-card.red::before   { background: var(--chart-red); }
+  .kpi-card.blue::before  { background: var(--chart-blue); }
+
+  .kpi-label {
+    font-family: 'DM Mono', monospace;
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--chart-muted);
+    margin-bottom: .45rem;
+  }
+
+  .kpi-value {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1.65rem;
+    letter-spacing: -.02em;
+    margin: 0;
+  }
+
+  .kpi-card.green .kpi-value { color: var(--chart-teal); }
+  .kpi-card.red .kpi-value   { color: var(--chart-red); }
+  .kpi-card.blue .kpi-value  { color: var(--chart-blue); }
+
+  /* Chart panel */
+  .chart-panel {
+    background: var(--chart-bg);
+    border: 1px solid var(--chart-border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Tab bar */
+  .chart-tabs {
+    display: flex;
+    gap: .35rem;
+    padding: .75rem .9rem .5rem;
+    border-bottom: 1px solid var(--chart-border);
+    background: var(--chart-surface);
+    flex-wrap: wrap;
+  }
+
+  .chart-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    font-family: 'DM Mono', monospace;
+    font-size: .74rem;
+    font-weight: 500;
+    color: var(--chart-muted);
+    padding: .38rem .85rem;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all .18s ease;
+    background: transparent;
+    white-space: nowrap;
+  }
+
+  .chart-tab:hover {
+    background: var(--tab-hover);
+    color: var(--chart-text);
+  }
+
+  .chart-tab.active {
+    background: var(--tab-active-bg);
+    border-color: var(--chart-border);
+    color: var(--chart-text);
+  }
+
+  .chart-tab .tab-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .tab-dot.teal   { background: var(--chart-teal); }
+  .tab-dot.blue   { background: var(--chart-blue); }
+  .tab-dot.amber  { background: var(--chart-amber); }
+  .tab-dot.purple { background: var(--chart-purple); }
+  .tab-dot.red    { background: var(--chart-red); }
+
+  /* Chart body */
+  .chart-body {
+    padding: 1.25rem 1rem 1rem;
+    position: relative;
+    min-height: 360px;
+  }
+
+  .chart-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    margin-bottom: 1rem;
+    padding: 0 .4rem;
+  }
+
+  .chart-main-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--chart-text);
+  }
+
+  .chart-sub-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: .68rem;
+    color: var(--chart-muted);
+    border: 1px solid var(--chart-border);
+    border-radius: 4px;
+    padding: .1rem .4rem;
+  }
+
+  .chart-canvas-wrap {
+    position: relative;
+    height: 300px;
+  }
+
+  .chart-view { display: none; }
+  .chart-view.active { display: block; }
+
+  /* Legend */
+  .chart-legend {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    padding: .5rem .4rem 0;
+    margin-top: .5rem;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    font-family: 'DM Mono', monospace;
+    font-size: .7rem;
+    color: var(--chart-muted);
+  }
+
+  .legend-swatch {
+    width: 20px; height: 3px;
+    border-radius: 2px;
+  }
+
+  /* Data table */
+  .data-panel {
+    background: var(--chart-surface);
+    border: 1px solid var(--chart-border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+
+  .data-panel-header {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .85rem 1.2rem;
+    border-bottom: 1px solid var(--chart-border);
+    font-family: 'Syne', sans-serif;
+    font-weight: 600;
+    font-size: .82rem;
+    color: var(--chart-muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+
+  .data-panel-header i { color: var(--chart-teal); }
+
+  .rev-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Mono', monospace;
+    font-size: .8rem;
+  }
+
+  .rev-table thead th {
+    background: #0d1117;
+    color: var(--chart-muted);
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    padding: .65rem 1.2rem;
+    border-bottom: 1px solid var(--chart-border);
+    font-weight: 500;
+  }
+
+  .rev-table tbody tr {
+    border-bottom: 1px solid var(--chart-border);
+    transition: background .15s;
+  }
+
+  .rev-table tbody tr:last-child { border-bottom: none; }
+  .rev-table tbody tr:hover { background: #161b22cc; }
+
+  .rev-table td {
+    padding: .7rem 1.2rem;
+    color: var(--chart-text);
+  }
+
+  .text-teal   { color: var(--chart-teal) !important; }
+  .text-red-ch { color: var(--chart-red) !important; }
+  .text-muted-ch { color: var(--chart-muted) !important; }
+
+  /* Action buttons */
+  .action-row {
+    display: flex;
+    gap: .6rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-ch {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    font-family: 'DM Mono', monospace;
+    font-size: .75rem;
+    padding: .5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--chart-border);
+    background: var(--chart-surface);
+    color: var(--chart-muted);
+    text-decoration: none;
+    transition: all .18s;
+    cursor: pointer;
+  }
+
+  .btn-ch:hover {
+    border-color: var(--chart-teal);
+    color: var(--chart-teal);
+    background: #0d1117;
+    text-decoration: none;
+  }
+
+  .btn-ch.primary {
+    border-color: var(--chart-blue);
+    color: var(--chart-blue);
+  }
+
+  .btn-ch.primary:hover {
+    border-color: var(--chart-blue);
+    color: #fff;
+    background: var(--chart-blue);
+  }
+</style>
+
+{# ---- Pass Flask/Jinja data to JS ---- #}
+<script id="revenue-data" type="application/json">{{ data | tojson }}</script>
+<script>
+  const _rows = JSON.parse(document.getElementById('revenue-data')?.textContent || '[]');
+  const _labels = _rows.map(row => row[0]);
+  const _billed = _rows.map(row => row[1] || 0);
+  const _collected = _rows.map(row => row[2] || 0);
+  const _outstanding = _billed.map((b,i) => Math.max(0, (b||0) - (_collected[i]||0)));
+</script>
+
+<!-- ===== HEADER ===== -->
+<div class="rev-header">
+  <div>
+    <h2 class="rev-title">Revenue Analytics</h2>
+    <p class="rev-subtitle">Financial trends · Collections · Outstanding balances</p>
+  </div>
+  <form method="GET">
+    <select name="period" class="period-select" onchange="this.form.submit()">
+      <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Monthly</option>
+      <option value="daily"   {% if period == 'daily'   %}selected{% endif %}>Daily (30 days)</option>
+      <option value="weekly"  {% if period == 'weekly'  %}selected{% endif %}>Weekly</option>
+    </select>
+  </form>
 </div>
 
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card hms-card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small mb-2">Total Revenue</div>
-                <h3 class="mb-0 text-success">${{ "{:,.0f}".format(total_revenue) }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card hms-card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small mb-2">Outstanding</div>
-                <h3 class="mb-0 text-danger">${{ "{:,.0f}".format(total_pending) }}</h3>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card hms-card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="text-muted small mb-2">Collection Efficiency</div>
-                {% set efficiency = ((total_revenue / (total_revenue + total_pending)) * 100) if (total_revenue + total_pending) > 0 else 0 %}
-                <h3 class="mb-0 text-primary">{{ "%.1f"|format(efficiency) }}%</h3>
-            </div>
-        </div>
-    </div>
+<!-- ===== KPI CARDS ===== -->
+<div class="kpi-grid">
+  <div class="kpi-card green">
+    <div class="kpi-label">Total Revenue</div>
+    <p class="kpi-value">${{ "{:,.0f}".format(total_revenue) }}</p>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-label">Outstanding</div>
+    <p class="kpi-value">${{ "{:,.0f}".format(total_pending) }}</p>
+  </div>
+  <div class="kpi-card blue">
+    <div class="kpi-label">Collection Efficiency</div>
+    {% set efficiency = ((total_revenue / (total_revenue + total_pending)) * 100) if (total_revenue + total_pending) > 0 else 0 %}
+    <p class="kpi-value">{{ "%.1f"|format(efficiency) }}%</p>
+  </div>
 </div>
 
-<div class="card hms-card mb-4">
-    <div class="card-header hms-card-header">
-        <i class="bi bi-graph-up-arrow me-2"></i>Revenue Trend
+<!-- ===== CHART PANEL ===== -->
+<div class="chart-panel">
+
+  <!-- Tab bar -->
+  <div class="chart-tabs">
+    <button type="button" class="chart-tab active" data-tab="line">
+      <span class="tab-dot teal"></span> Revenue Trend
+    </button>
+    <button type="button" class="chart-tab" data-tab="bar">
+      <span class="tab-dot blue"></span> Billed vs Collected
+    </button>
+    <button type="button" class="chart-tab" data-tab="area">
+      <span class="tab-dot amber"></span> Cumulative Flow
+    </button>
+    <button type="button" class="chart-tab" data-tab="doughnut">
+      <span class="tab-dot purple"></span> Distribution
+    </button>
+    <button type="button" class="chart-tab" data-tab="scatter">
+      <span class="tab-dot red"></span> Efficiency Scatter
+    </button>
+  </div>
+
+  <!-- Chart body -->
+  <div class="chart-body">
+
+    <!-- Line -->
+    <div class="chart-view active" id="view-line">
+      <div class="chart-title-row">
+        <span class="chart-main-title">Revenue Trend</span>
+        <span class="chart-sub-badge">{{ period | capitalize }}</span>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="lineChart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--chart-teal)"></div> Collected</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--chart-red)"></div> Outstanding</div>
+      </div>
     </div>
-    <div class="card-body text-center">
-        <img src="data:image/png;base64,{{ revenue_chart }}" alt="Revenue trend chart" class="img-fluid rounded shadow-sm">
+
+    <!-- Bar -->
+    <div class="chart-view" id="view-bar">
+      <div class="chart-title-row">
+        <span class="chart-main-title">Billed vs Collected</span>
+        <span class="chart-sub-badge">{{ period | capitalize }}</span>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="barChart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--chart-blue)"></div> Billed</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--chart-teal)"></div> Collected</div>
+      </div>
     </div>
+
+    <!-- Area / Cumulative -->
+    <div class="chart-view" id="view-area">
+      <div class="chart-title-row">
+        <span class="chart-main-title">Cumulative Cash Flow</span>
+        <span class="chart-sub-badge">{{ period | capitalize }}</span>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="areaChart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--chart-amber)"></div> Cumulative Collected</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:var(--chart-red)"></div> Cumulative Outstanding</div>
+      </div>
+    </div>
+
+    <!-- Doughnut -->
+    <div class="chart-view" id="view-doughnut">
+      <div class="chart-title-row">
+        <span class="chart-main-title">Revenue Distribution</span>
+        <span class="chart-sub-badge">Totals</span>
+      </div>
+      <div class="chart-canvas-wrap" style="height:260px;max-width:340px;margin:0 auto;">
+        <canvas id="doughnutChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Scatter -->
+    <div class="chart-view" id="view-scatter">
+      <div class="chart-title-row">
+        <span class="chart-main-title">Collection Efficiency</span>
+        <span class="chart-sub-badge">Billed → Collected ratio</span>
+      </div>
+      <div class="chart-canvas-wrap"><canvas id="scatterChart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><span class="tab-dot red" style="display:inline-block;border-radius:50%;width:8px;height:8px;"></span>&nbsp; Each period</div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
-<div class="card hms-card">
-    <div class="card-header hms-card-header"><i class="bi bi-table me-2"></i>Revenue Data</div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr><th>Period</th><th>Total Billed</th><th>Total Collected</th><th>Outstanding</th></tr>
-                </thead>
-                <tbody>
-                {% for row in data %}
-                <tr>
-                    <td class="mono-text">{{ row[0] }}</td>
-                    <td>${{ "{:,.2f}".format(row[1] or 0) }}</td>
-                    <td class="text-success">${{ "{:,.2f}".format(row[2] or 0) }}</td>
-                    <td class="{{ 'text-danger' if (row[1] or 0) - (row[2] or 0) > 0 else 'text-muted' }}">
-                        ${{ "{:,.2f}".format((row[1] or 0) - (row[2] or 0)) }}
-                    </td>
-                </tr>
-                {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+<!-- ===== DATA TABLE ===== -->
+<div class="data-panel">
+  <div class="data-panel-header">
+    <i class="bi bi-table"></i> Revenue Data
+  </div>
+  <div style="overflow-x:auto;">
+    <table class="rev-table">
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Total Billed</th>
+          <th>Total Collected</th>
+          <th>Outstanding</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data %}
+        <tr>
+          <td>{{ row[0] }}</td>
+          <td>${{ "{:,.2f}".format(row[1] or 0) }}</td>
+          <td class="text-teal">${{ "{:,.2f}".format(row[2] or 0) }}</td>
+          <td class="{{ 'text-red-ch' if (row[1] or 0) - (row[2] or 0) > 0 else 'text-muted-ch' }}">
+            ${{ "{:,.2f}".format((row[1] or 0) - (row[2] or 0)) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
-<div class="mt-3 d-flex gap-2">
-    <a href="{{ url_for('billing.export_bills') }}" class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Export CSV</a>
-    <a href="{{ url_for('admin.report_patients') }}" class="btn btn-outline-primary"><i class="bi bi-people me-1"></i>Patient Report</a>
+<!-- ===== ACTIONS ===== -->
+<div class="action-row">
+  <a href="{{ url_for('billing.export_bills') }}" class="btn-ch">
+    <i class="bi bi-download"></i> Export CSV
+  </a>
+  <a href="{{ url_for('admin.report_patients') }}" class="btn-ch primary">
+    <i class="bi bi-people"></i> Patient Report
+  </a>
 </div>
+
+
+<!-- ===== SCRIPTS ===== -->
+<script>
+(function () {
+
+  /* ---- shared Chart.js defaults ---- */
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.font.family = "'DM Mono', monospace";
+  Chart.defaults.font.size = 11;
+
+  const gridColor  = 'rgba(33,38,45,.7)';
+  const tickColor  = '#8b949e';
+
+  const baseScales = {
+    x: {
+      grid: { color: gridColor },
+      ticks: { color: tickColor, maxRotation: 45 }
+    },
+    y: {
+      grid: { color: gridColor },
+      ticks: {
+        color: tickColor,
+        callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v)
+      }
+    }
+  };
+
+  /* ---- helpers ---- */
+  function cumSum(arr) {
+    let s = 0;
+    return arr.map(v => (s += (v || 0)));
+  }
+
+  /* ========== 1. LINE ========== */
+  new Chart(document.getElementById('lineChart'), {
+    type: 'line',
+    data: {
+      labels: _labels,
+      datasets: [
+        {
+          label: 'Collected',
+          data: _collected,
+          borderColor: '#2dd4bf',
+          backgroundColor: 'rgba(45,212,191,.08)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: '#2dd4bf',
+          tension: .35,
+          fill: true
+        },
+        {
+          label: 'Outstanding',
+          data: _outstanding,
+          borderColor: '#f87171',
+          backgroundColor: 'rgba(248,113,113,.06)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: '#f87171',
+          tension: .35,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: baseScales,
+      interaction: { mode: 'index', intersect: false }
+    }
+  });
+
+  /* ========== 2. BAR ========== */
+  new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: {
+      labels: _labels,
+      datasets: [
+        {
+          label: 'Billed',
+          data: _billed,
+          backgroundColor: 'rgba(96,165,250,.65)',
+          borderColor: '#60a5fa',
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false
+        },
+        {
+          label: 'Collected',
+          data: _collected,
+          backgroundColor: 'rgba(45,212,191,.65)',
+          borderColor: '#2dd4bf',
+          borderWidth: 1,
+          borderRadius: 4,
+          borderSkipped: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        ...baseScales,
+        x: { ...baseScales.x, stacked: false }
+      },
+      interaction: { mode: 'index', intersect: false }
+    }
+  });
+
+  /* ========== 3. AREA (cumulative) ========== */
+  new Chart(document.getElementById('areaChart'), {
+    type: 'line',
+    data: {
+      labels: _labels,
+      datasets: [
+        {
+          label: 'Cumulative Collected',
+          data: cumSum(_collected),
+          borderColor: '#fbbf24',
+          backgroundColor: 'rgba(251,191,36,.12)',
+          borderWidth: 2,
+          pointRadius: 2,
+          tension: .35,
+          fill: true
+        },
+        {
+          label: 'Cumulative Outstanding',
+          data: cumSum(_outstanding),
+          borderColor: '#f87171',
+          backgroundColor: 'rgba(248,113,113,.07)',
+          borderWidth: 2,
+          pointRadius: 2,
+          tension: .35,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: baseScales,
+      interaction: { mode: 'index', intersect: false }
+    }
+  });
+
+  /* ========== 4. DOUGHNUT ========== */
+  const totalCollected    = _collected.reduce((a,b)  => a+(b||0), 0);
+  const totalOutstanding  = _outstanding.reduce((a,b) => a+(b||0), 0);
+
+  new Chart(document.getElementById('doughnutChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Collected', 'Outstanding'],
+      datasets: [{
+        data: [totalCollected, totalOutstanding],
+        backgroundColor: ['rgba(45,212,191,.8)', 'rgba(248,113,113,.8)'],
+        borderColor:      ['#2dd4bf', '#f87171'],
+        borderWidth: 2,
+        hoverOffset: 10
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: { color: '#8b949e', padding: 16, font: { size: 11 } }
+        }
+      }
+    }
+  });
+
+  /* ========== 5. SCATTER ========== */
+  const scatterData = _labels.map((_, i) => ({
+    x: _billed[i] || 0,
+    y: _billed[i] ? ((_collected[i] || 0) / _billed[i]) * 100 : 0,
+    label: _labels[i]
+  }));
+
+  new Chart(document.getElementById('scatterChart'), {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Efficiency %',
+        data: scatterData,
+        backgroundColor: 'rgba(248,113,113,.7)',
+        borderColor: '#f87171',
+        borderWidth: 1,
+        pointRadius: 5,
+        pointHoverRadius: 7
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          grid: { color: gridColor },
+          ticks: {
+            color: tickColor,
+            callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0)+'k' : v)
+          },
+          title: { display: true, text: 'Total Billed', color: '#8b949e' }
+        },
+        y: {
+          grid: { color: gridColor },
+          ticks: { color: tickColor, callback: v => v + '%' },
+          title: { display: true, text: 'Collection Rate %', color: '#8b949e' },
+          min: 0, max: 110
+        }
+      }
+    }
+  });
+
+  /* ========== Tab switching ========== */
+  const tabs  = document.querySelectorAll('.chart-tab');
+  const views = document.querySelectorAll('.chart-view');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const target = tab.dataset.tab;
+      tabs.forEach(t  => t.classList.remove('active'));
+      views.forEach(v => v.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('view-' + target).classList.add('active');
+    });
+  });
+
+})();
+</script>
 {% endblock %}
