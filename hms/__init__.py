@@ -3,7 +3,7 @@ import os
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from config import config
+from config import _sqlalchemy_database_uri, config
 
 db = SQLAlchemy()
 login_manager = LoginManager()
@@ -20,6 +20,9 @@ def create_app(config_name=None):
             config_name = 'default'
     app = Flask(__name__)
     app.config.from_object(config[config_name])
+    # Re-resolve DB URI at app init (not only at config import) so Vercel env is visible
+    # and we never keep a stale mssql+pyodbc URL from an earlier import context.
+    app.config['SQLALCHEMY_DATABASE_URI'] = _sqlalchemy_database_uri()
 
     db.init_app(app)
     login_manager.init_app(app)

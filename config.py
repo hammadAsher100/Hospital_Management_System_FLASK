@@ -6,6 +6,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _is_vercel_runtime():
+    """Vercel sets these at runtime; check several because some builds omit VERCEL early."""
+    return bool(
+        os.environ.get('VERCEL')
+        or os.environ.get('VERCEL_ENV')
+        or os.environ.get('VERCEL_URL')
+        or os.environ.get('VERCEL_REGION')
+    )
+
+
 def _sqlalchemy_database_uri():
     """Full URI wins (needed for Azure SQL: encrypt, driver 18, etc.)."""
     explicit = (
@@ -16,7 +26,7 @@ def _sqlalchemy_database_uri():
 
     # Vercel/Linux: Flask-SQLAlchemy 3 creates engines inside init_app(), so mssql+pyodbc
     # imports pyodbc immediately. Default Vercel runtimes usually lack MS ODBC → import crash.
-    if os.environ.get('VERCEL'):
+    if _is_vercel_runtime():
         if explicit:
             lower = explicit.lower()
             if lower.startswith('sqlite') or 'postgresql' in lower or lower.startswith(
@@ -66,7 +76,7 @@ class Config:
     DB_USERNAME = os.environ.get('DB_USERNAME', '')
     DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
 
-    SQLALCHEMY_DATABASE_URI = _sqlalchemy_database_uri()
+    # Set in create_app() so the URI sees final process env (e.g. Vercel) and matches init_app().
 
 
 class DevelopmentConfig(Config):
