@@ -1,3 +1,5 @@
+import os
+
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -10,7 +12,12 @@ login_manager.login_message = 'Please log in to access this page.'
 login_manager.login_message_category = 'warning'
 
 
-def create_app(config_name='default'):
+def create_app(config_name=None):
+    if config_name is None:
+        if os.environ.get('VERCEL') or os.environ.get('FLASK_ENV') == 'production':
+            config_name = 'production'
+        else:
+            config_name = 'default'
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
