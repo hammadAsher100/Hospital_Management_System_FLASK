@@ -13,6 +13,25 @@ def _sqlalchemy_database_uri():
         or os.environ.get('DATABASE_URL')
         or ''
     ).strip()
+
+    # Vercel/Linux: Flask-SQLAlchemy 3 creates engines inside init_app(), so mssql+pyodbc
+    # imports pyodbc immediately. Default Vercel runtimes usually lack MS ODBC → import crash.
+    if os.environ.get('VERCEL'):
+        if explicit:
+            lower = explicit.lower()
+            if lower.startswith('sqlite') or 'postgresql' in lower or lower.startswith(
+                'postgres'
+            ):
+                return explicit
+            if 'mssql' in lower and os.environ.get('VERCEL_USE_MSSQL'):
+                return explicit
+            if 'mssql' in lower and not os.environ.get('VERCEL_USE_MSSQL'):
+                print(
+                    '[config] Vercel: ignoring MSSQL URI (set VERCEL_USE_MSSQL=1 if ODBC works). '
+                    'Using SQLite fallback so the app can boot.'
+                )
+        return 'sqlite:////tmp/hms_vercel.sqlite3'
+
     if explicit:
         return explicit
 
