@@ -105,7 +105,7 @@ The system follows a layered **MVC (Model-View-Controller)** architecture:
 ```
 hospital-management-system/
 │
-├── app/
+├── hms/                          # Flask application package
 │   ├── __init__.py               # App factory & config
 │   ├── models/                   # Database models
 │   │   ├── patient.py
@@ -144,7 +144,7 @@ hospital-management-system/
 │
 ├── config.py                     # Environment config
 ├── requirements.txt
-├── run.py                        # Entry point
+├── app.py                        # Entry point (WSGI; Vercel uses this file)
 └── README.md
 ```
 
@@ -204,7 +204,7 @@ sqlcmd -S YOUR_SERVER -d HMS_DB -i database/seed.sql
 ### 5. Run the application
 
 ```bash
-python run.py
+python app.py
 ```
 
 Visit `http://127.0.0.1:5000` in your browser.
