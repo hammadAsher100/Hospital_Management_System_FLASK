@@ -12,13 +12,25 @@ from datetime import datetime, date, timedelta
 from sqlalchemy import func, cast, Date
 import csv, io
 import base64
-import pandas as pd
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 admin_bp = Blueprint('admin', __name__)
+
+_plot_libs_cache = None
+
+
+def _plot_libs():
+    """Defer heavy plotting imports so cold starts work on small serverless bundles."""
+    global _plot_libs_cache
+    if _plot_libs_cache is None:
+        import matplotlib
+
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import pandas as pd
+        import seaborn as sns
+
+        _plot_libs_cache = (plt, sns, pd)
+    return _plot_libs_cache
 
 HMS_COLORS = {
     'primary': '#4378f4',
@@ -42,6 +54,7 @@ HMS_PALETTE = [
 
 
 def _fig_to_base64(fig):
+    plt, _sns, _pd = _plot_libs()
     buffer = io.BytesIO()
     fig.savefig(buffer, format='png', bbox_inches='tight', dpi=120)
     plt.close(fig)
@@ -104,6 +117,7 @@ def dashboard():
 @login_required
 @admin_required
 def report_patients():
+    plt, sns, pd = _plot_libs()
     total = Patient.query.count()
     by_gender = db.session.query(Patient.gender, func.count()).group_by(Patient.gender).all()
     by_blood = db.session.query(Patient.blood_group, func.count()).group_by(Patient.blood_group).all()
@@ -189,6 +203,7 @@ def report_patients():
 @login_required
 @admin_required
 def report_revenue():
+    plt, sns, pd = _plot_libs()
     period = request.args.get('period', 'monthly')
     today = date.today()
 
@@ -293,6 +308,7 @@ def report_inventory():
 @login_required
 @admin_required
 def report_appointments():
+    plt, sns, pd = _plot_libs()
     by_status = db.session.query(
         Appointment.status, func.count()
     ).group_by(Appointment.status).all()

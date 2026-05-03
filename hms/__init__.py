@@ -97,13 +97,14 @@ def create_app(config_name=None):
     def forbidden(e):
         return render_template('errors/403.html'), 403
 
-    # Test DB connection on startup
-    with app.app_context():
-        try:
-            db.engine.connect()
-            print("[OK] Database connection successful.")
-        except Exception as e:
-            print(f"[WARNING] Database connection failed: {e}")
-            print("   Make sure SSMS is running and .env is configured correctly.")
+    # Optional startup DB check (skipped on Vercel: pyodbc/dialect init can fail hard in serverless)
+    if not os.environ.get('VERCEL'):
+        with app.app_context():
+            try:
+                db.engine.connect()
+                print("[OK] Database connection successful.")
+            except Exception as e:
+                print(f"[WARNING] Database connection failed: {e}")
+                print("   Make sure SSMS is running and .env is configured correctly.")
 
     return app
