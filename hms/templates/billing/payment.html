@@ -44,6 +44,9 @@
                         <button type="submit" class="btn btn-success">
                             <i class="bi bi-check-circle me-1"></i>Record Payment
                         </button>
+                        {% if current_user.is_admin() or current_user.is_billing() %}
+                        <a href="{{ url_for('billing.list_bills') }}" class="btn btn-outline-secondary">Back to Bills</a>
+                        {% endif %}
                         <a href="{{ url_for('billing.view_bill', id=bill.bill_id) }}" class="btn btn-outline-secondary">Cancel</a>
                     </div>
                 </form>

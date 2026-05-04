@@ -5,6 +5,8 @@ from hms.models.patient import Patient
 from hms.models.user import User
 from hms.models.appointment import Appointment
 from hms.models.doctor import Doctor, DoctorSchedule
+from hms.models.pharmacy import Prescription
+from hms.models.billing import Bill
 from hms.utils import role_required
 from hms.db_queries import is_sql_server, fetch_rows, rows_to_objects
 from datetime import datetime, date, timedelta
@@ -98,7 +100,31 @@ def add_patient():
 def view_patient(id):
     patient = Patient.query.get_or_404(id)
     tab = request.args.get('tab', 'info')
-    return render_template('patients/view.html', patient=patient, tab=tab)
+
+    appointments = (
+        Appointment.query.filter_by(patient_id=patient.patient_id)
+        .order_by(Appointment.appointment_date.desc(), Appointment.appointment_time.desc())
+        .all()
+    )
+    prescriptions = (
+        Prescription.query.filter_by(patient_id=patient.patient_id)
+        .order_by(Prescription.prescribed_date.desc())
+        .all()
+    )
+    bills = (
+        Bill.query.filter_by(patient_id=patient.patient_id)
+        .order_by(Bill.bill_date.desc())
+        .all()
+    )
+
+    return render_template(
+        'patients/view.html',
+        patient=patient,
+        tab=tab,
+        appointments=appointments,
+        prescriptions=prescriptions,
+        bills=bills
+    )
 
 
 @patients_bp.route('/<int:id>/edit', methods=['GET', 'POST'])

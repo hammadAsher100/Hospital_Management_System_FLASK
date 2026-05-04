@@ -47,6 +47,7 @@ def list_bills():
 
 @billing_bp.route('/generate', methods=['GET', 'POST'])
 @login_required
+@role_required('admin', 'billing', 'patient')
 def generate_bill():
     patient_user = current_user.is_patient()
     staff_user = current_user.is_admin() or current_user.is_billing()
@@ -176,6 +177,7 @@ def generate_bill():
             default_item_price = f"{float(selected_appt.doctor.consultation_fee or 0):.2f}"
     if patient_user:
         preselect = current_patient.patient_id
+
     return render_template(
         'billing/generate.html',
         patients=patients,

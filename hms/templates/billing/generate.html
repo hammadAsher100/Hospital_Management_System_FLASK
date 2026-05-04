@@ -113,9 +113,7 @@ function updateTotals() {
 }
 
 function addItem() {
-    if ({{ 'true' if is_patient_user else 'false' }}) {
-        return;
-    }
+    
     const container = document.getElementById('billItems');
     const first = container.querySelector('.bill-item-row');
     const clone = first.cloneNode(true);
