@@ -208,5 +208,171 @@ CREATE TABLE Prescription_Items (
 CREATE INDEX IX_PrescItems_pres ON Prescription_Items (prescription_id);
 GO
 
+-- ── Reporting Views ──────────────────────────────────────────────
+IF OBJECT_ID('dbo.vw_ActiveDoctors', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_ActiveDoctors;
+GO
+CREATE VIEW dbo.vw_ActiveDoctors AS
+SELECT
+    d.doctor_id,
+    d.first_name,
+    d.last_name,
+    CONCAT('Dr. ', d.first_name, ' ', d.last_name) AS full_name,
+    d.specialization,
+    d.consultation_fee
+FROM Doctors d
+INNER JOIN Users u ON u.user_id = d.user_id
+WHERE u.is_active = 1
+  AND (d.availability_status = 1 OR d.availability_status IS NULL);
+GO
+
+IF OBJECT_ID('dbo.vw_TodayAppointmentsDetailed', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_TodayAppointmentsDetailed;
+GO
+CREATE VIEW dbo.vw_TodayAppointmentsDetailed AS
+SELECT
+    a.appointment_id,
+    a.patient_id,
+    a.doctor_id,
+    a.appointment_date,
+    a.appointment_time,
+    a.status,
+    CONCAT(p.first_name, ' ', p.last_name) AS patient_name,
+    CONCAT('Dr. ', d.first_name, ' ', d.last_name) AS doctor_name
+FROM Appointments a
+INNER JOIN Patients p ON p.patient_id = a.patient_id
+INNER JOIN Doctors d ON d.doctor_id = a.doctor_id;
+GO
+
+IF OBJECT_ID('dbo.vw_RecentPatients', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_RecentPatients;
+GO
+CREATE VIEW dbo.vw_RecentPatients AS
+SELECT
+    patient_id,
+    CONCAT(first_name, ' ', last_name) AS full_name,
+    gender,
+    phone,
+    registration_date
+FROM Patients;
+GO
+
+IF OBJECT_ID('dbo.vw_DailyRevenue', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_DailyRevenue;
+GO
+CREATE VIEW dbo.vw_DailyRevenue AS
+SELECT
+    CAST(bill_date AS DATE) AS bill_day,
+    SUM(total_amount) AS total_amount,
+    SUM(paid_amount) AS paid_amount
+FROM Billing
+GROUP BY CAST(bill_date AS DATE);
+GO
+
+IF OBJECT_ID('dbo.vw_AppointmentStatusSummary', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_AppointmentStatusSummary;
+GO
+CREATE VIEW dbo.vw_AppointmentStatusSummary AS
+SELECT
+    status,
+    COUNT(*) AS appointment_count
+FROM Appointments
+GROUP BY status;
+GO
+
+IF OBJECT_ID('dbo.vw_AppointmentDoctorSummary', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_AppointmentDoctorSummary;
+GO
+CREATE VIEW dbo.vw_AppointmentDoctorSummary AS
+SELECT
+    d.first_name,
+    d.last_name,
+    COUNT(a.appointment_id) AS appointment_count
+FROM Doctors d
+INNER JOIN Appointments a ON a.doctor_id = d.doctor_id
+GROUP BY d.doctor_id, d.first_name, d.last_name;
+GO
+
+IF OBJECT_ID('dbo.vw_MedicineCategorySummary', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_MedicineCategorySummary;
+GO
+CREATE VIEW dbo.vw_MedicineCategorySummary AS
+SELECT
+    ISNULL(category, 'Uncategorized') AS category,
+    COUNT(*) AS medicine_count,
+    SUM(stock_quantity) AS total_stock,
+    SUM(unit_price * stock_quantity) AS total_value
+FROM Medicines
+GROUP BY ISNULL(category, 'Uncategorized');
+GO
+
+-- ── Stored Procedures ────────────────────────────────────────────
+IF OBJECT_ID('dbo.usp_GetAdminDashboardMetrics', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetAdminDashboardMetrics;
+GO
+CREATE PROCEDURE dbo.usp_GetAdminDashboardMetrics
+    @today DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @month_start DATE = DATEFROMPARTS(YEAR(@today), MONTH(@today), 1);
+
+    SELECT
+        (SELECT COUNT(*) FROM Patients) AS total_patients,
+        (SELECT COUNT(*) FROM Appointments WHERE appointment_date = @today) AS today_appointments,
+        (SELECT COUNT(*) FROM Admissions WHERE discharge_date IS NULL) AS active_admissions,
+        (SELECT COUNT(*) FROM Medicines WHERE stock_quantity <= reorder_level) AS low_stock_count,
+        (SELECT ISNULL(SUM(paid_amount), 0) FROM Billing WHERE bill_date >= @month_start) AS monthly_revenue,
+        (SELECT COUNT(*) FROM Billing WHERE status = 'pending') AS pending_bills_count;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_CheckAppointmentConflict', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_CheckAppointmentConflict;
+GO
+CREATE PROCEDURE dbo.usp_CheckAppointmentConflict
+    @doctor_id INT,
+    @appointment_date DATE,
+    @appointment_time TIME,
+    @exclude_id INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT
+        CASE
+            WHEN EXISTS (
+                SELECT 1
+                FROM Appointments
+                WHERE doctor_id = @doctor_id
+                  AND appointment_date = @appointment_date
+                  AND appointment_time = @appointment_time
+                  AND status = 'scheduled'
+                  AND (@exclude_id IS NULL OR appointment_id <> @exclude_id)
+            ) THEN CAST(1 AS BIT)
+            ELSE CAST(0 AS BIT)
+        END AS has_conflict;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_GetDoctorBookedSlots', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetDoctorBookedSlots;
+GO
+CREATE PROCEDURE dbo.usp_GetDoctorBookedSlots
+    @doctor_id INT,
+    @appointment_date DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT appointment_time
+    FROM Appointments
+    WHERE doctor_id = @doctor_id
+      AND appointment_date = @appointment_date
+      AND status = 'scheduled';
+END
+GO
+
 PRINT 'Schema created successfully. Run seed.sql next.';
 GO

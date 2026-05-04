@@ -8,10 +8,12 @@ from hms.models.pharmacy import Medicine
 from hms.models.doctor import Doctor
 from hms.models.admission import Admission
 from hms.utils import admin_required
+from hms.db_queries import is_sql_server, fetch_rows, exec_procedure
 from datetime import datetime, date, timedelta
 from sqlalchemy import func, cast, Date
 import csv, io
 import base64
+from types import SimpleNamespace
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -53,6 +55,55 @@ HMS_PALETTE = [
 ]
 
 
+def _status_badge(status):
+    badges = {'scheduled': 'primary', 'completed': 'success', 'cancelled': 'danger'}
+    return badges.get((status or '').lower(), 'secondary')
+
+
+def _dashboard_today_appointments(today):
+    if not is_sql_server():
+        return Appointment.query.filter_by(
+            appointment_date=today
+        ).order_by(Appointment.appointment_time).limit(5).all()
+
+    rows = fetch_rows(
+        """
+        SELECT TOP 5 patient_id, appointment_time, status, patient_name, doctor_name
+        FROM dbo.vw_TodayAppointmentsDetailed
+        WHERE appointment_date = :today
+        ORDER BY appointment_time
+        """,
+        {"today": today},
+    )
+    return [
+        SimpleNamespace(
+            patient_id=row["patient_id"],
+            appointment_time=row["appointment_time"],
+            status=row["status"],
+            status_badge=_status_badge(row["status"]),
+            patient=SimpleNamespace(full_name=row["patient_name"]),
+            doctor=SimpleNamespace(full_name=row["doctor_name"]),
+        )
+        for row in rows
+    ]
+
+
+def _dashboard_recent_patients():
+    if not is_sql_server():
+        return Patient.query.order_by(
+            Patient.registration_date.desc()
+        ).limit(5).all()
+
+    rows = fetch_rows(
+        """
+        SELECT TOP 5 patient_id, full_name, gender, phone, registration_date
+        FROM dbo.vw_RecentPatients
+        ORDER BY registration_date DESC
+        """
+    )
+    return [SimpleNamespace(**dict(r)) for r in rows]
+
+
 def _fig_to_base64(fig):
     plt, _sns, _pd = _plot_libs()
     buffer = io.BytesIO()
@@ -67,39 +118,54 @@ def _fig_to_base64(fig):
 @admin_required
 def dashboard():
     today = date.today()
-    month_start = today.replace(day=1)
+    if is_sql_server():
+        metrics = exec_procedure("dbo.usp_GetAdminDashboardMetrics", {"today": today})
+        metric_row = metrics[0] if metrics else {}
+        total_patients = int(metric_row.get('total_patients') or 0)
+        today_appointments = int(metric_row.get('today_appointments') or 0)
+        active_admissions = int(metric_row.get('active_admissions') or 0)
+        low_stock_count = int(metric_row.get('low_stock_count') or 0)
+        monthly_revenue = float(metric_row.get('monthly_revenue') or 0)
+        pending_bills_count = int(metric_row.get('pending_bills_count') or 0)
+    else:
+        month_start = today.replace(day=1)
+        total_patients = Patient.query.count()
+        today_appointments = Appointment.query.filter_by(appointment_date=today).count()
+        active_admissions = Admission.query.filter_by(discharge_date=None).count()
+        low_stock_count = Medicine.query.filter(
+            Medicine.stock_quantity <= Medicine.reorder_level
+        ).count()
+        monthly_revenue = db.session.query(func.sum(Bill.paid_amount)).filter(
+            Bill.bill_date >= month_start
+        ).scalar() or 0
+        pending_bills_count = Bill.query.filter_by(status='pending').count()
 
-    total_patients = Patient.query.count()
-    today_appointments = Appointment.query.filter_by(appointment_date=today).count()
-    active_admissions = Admission.query.filter_by(discharge_date=None).count()
-    low_stock_count = Medicine.query.filter(
-        Medicine.stock_quantity <= Medicine.reorder_level
-    ).count()
-
-    monthly_revenue = db.session.query(func.sum(Bill.paid_amount)).filter(
-        Bill.bill_date >= month_start
-    ).scalar() or 0
-
-    pending_bills_count = Bill.query.filter_by(status='pending').count()
-
-    # Today's appointments for quick view
-    todays_appts = Appointment.query.filter_by(
-        appointment_date=today
-    ).order_by(Appointment.appointment_time).limit(5).all()
-
-    # Recent patients
-    recent_patients = Patient.query.order_by(
-        Patient.registration_date.desc()
-    ).limit(5).all()
+    todays_appts = _dashboard_today_appointments(today)
+    recent_patients = _dashboard_recent_patients()
 
     # Revenue last 7 days for mini chart
     revenue_data = []
-    for i in range(6, -1, -1):
-        d = today - timedelta(days=i)
-        rev = db.session.query(func.sum(Bill.paid_amount)).filter(
-            cast(Bill.bill_date, Date) == d
-        ).scalar() or 0
-        revenue_data.append({'date': d.strftime('%b %d'), 'amount': float(rev)})
+    if is_sql_server():
+        start = today - timedelta(days=6)
+        rows = fetch_rows(
+            """
+            SELECT bill_day, paid_amount
+            FROM dbo.vw_DailyRevenue
+            WHERE bill_day BETWEEN :start_day AND :end_day
+            """,
+            {"start_day": start, "end_day": today},
+        )
+        revenue_map = {row["bill_day"]: float(row["paid_amount"] or 0) for row in rows}
+        for i in range(6, -1, -1):
+            d = today - timedelta(days=i)
+            revenue_data.append({'date': d.strftime('%b %d'), 'amount': revenue_map.get(d, 0.0)})
+    else:
+        for i in range(6, -1, -1):
+            d = today - timedelta(days=i)
+            rev = db.session.query(func.sum(Bill.paid_amount)).filter(
+                cast(Bill.bill_date, Date) == d
+            ).scalar() or 0
+            revenue_data.append({'date': d.strftime('%b %d'), 'amount': float(rev)})
 
     return render_template('dashboard/admin_dashboard.html',
                            total_patients=total_patients,
@@ -284,20 +350,34 @@ def report_revenue():
 def report_inventory():
     all_meds = Medicine.query.order_by(Medicine.stock_quantity).all()
     low_stock = [m for m in all_meds if m.is_low_stock()]
-    by_category_raw = db.session.query(
-        Medicine.category, func.count(), func.sum(Medicine.stock_quantity)
-    ).group_by(Medicine.category).all()
-    by_category = [
-        (
-            str(row[0] or 'Uncategorized'),
-            int(row[1] or 0),
-            float(row[2] or 0)
+    if is_sql_server():
+        rows = fetch_rows(
+            """
+            SELECT category, medicine_count, total_stock, total_value
+            FROM dbo.vw_MedicineCategorySummary
+            ORDER BY category
+            """
         )
-        for row in by_category_raw
-    ]
-    total_value = db.session.query(
-        func.sum(Medicine.unit_price * Medicine.stock_quantity)
-    ).scalar() or 0
+        by_category = [
+            (str(r['category']), int(r['medicine_count'] or 0), float(r['total_stock'] or 0))
+            for r in rows
+        ]
+        total_value = sum(float(r['total_value'] or 0) for r in rows)
+    else:
+        by_category_raw = db.session.query(
+            Medicine.category, func.count(), func.sum(Medicine.stock_quantity)
+        ).group_by(Medicine.category).all()
+        by_category = [
+            (
+                str(row[0] or 'Uncategorized'),
+                int(row[1] or 0),
+                float(row[2] or 0)
+            )
+            for row in by_category_raw
+        ]
+        total_value = db.session.query(
+            func.sum(Medicine.unit_price * Medicine.stock_quantity)
+        ).scalar() or 0
 
     return render_template('admin/report_inventory.html',
                            all_meds=all_meds, low_stock=low_stock,
@@ -309,13 +389,30 @@ def report_inventory():
 @admin_required
 def report_appointments():
     plt, sns, pd = _plot_libs()
-    by_status = db.session.query(
-        Appointment.status, func.count()
-    ).group_by(Appointment.status).all()
+    if is_sql_server():
+        status_rows = fetch_rows(
+            """
+            SELECT status, appointment_count
+            FROM dbo.vw_AppointmentStatusSummary
+            """
+        )
+        by_status = [(r['status'], int(r['appointment_count'] or 0)) for r in status_rows]
 
-    by_doctor = db.session.query(
-        Doctor.first_name, Doctor.last_name, func.count(Appointment.appointment_id)
-    ).join(Appointment).group_by(Doctor.doctor_id, Doctor.first_name, Doctor.last_name).all()
+        doctor_rows = fetch_rows(
+            """
+            SELECT first_name, last_name, appointment_count
+            FROM dbo.vw_AppointmentDoctorSummary
+            """
+        )
+        by_doctor = [(r['first_name'], r['last_name'], int(r['appointment_count'] or 0)) for r in doctor_rows]
+    else:
+        by_status = db.session.query(
+            Appointment.status, func.count()
+        ).group_by(Appointment.status).all()
+
+        by_doctor = db.session.query(
+            Doctor.first_name, Doctor.last_name, func.count(Appointment.appointment_id)
+        ).join(Appointment).group_by(Doctor.doctor_id, Doctor.first_name, Doctor.last_name).all()
 
     status_df = pd.DataFrame(by_status, columns=['status', 'count'])
     doctor_df = pd.DataFrame(by_doctor, columns=['first_name', 'last_name', 'count'])

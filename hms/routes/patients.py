@@ -6,10 +6,31 @@ from hms.models.user import User
 from hms.models.appointment import Appointment
 from hms.models.doctor import Doctor, DoctorSchedule
 from hms.utils import role_required
+from hms.db_queries import is_sql_server, fetch_rows, rows_to_objects
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_
 
 patients_bp = Blueprint('patients', __name__)
+
+
+def _fetch_active_doctors():
+    if is_sql_server():
+        rows = fetch_rows(
+            """
+            SELECT doctor_id, full_name, specialization, consultation_fee
+            FROM dbo.vw_ActiveDoctors
+            ORDER BY full_name
+            """
+        )
+        return rows_to_objects(rows)
+
+    return (
+        Doctor.query.join(User, Doctor.user_id == User.user_id)
+        .filter(User.is_active == True)
+        .filter(or_(Doctor.availability_status == True, Doctor.availability_status.is_(None)))
+        .order_by(Doctor.last_name)
+        .all()
+    )
 
 
 def _get_current_patient():
@@ -224,13 +245,7 @@ def book_appointment():
             flash(f'Error booking appointment: {str(e)}', 'danger')
 
     # Get all active doctors unless explicitly marked unavailable.
-    doctors = (
-        Doctor.query.join(User, Doctor.user_id == User.user_id)
-        .filter(User.is_active == True)
-        .filter(or_(Doctor.availability_status == True, Doctor.availability_status.is_(None)))
-        .order_by(Doctor.last_name)
-        .all()
-    )
+    doctors = _fetch_active_doctors()
     min_booking_date = date.today() + timedelta(days=1)
     max_booking_date = date.today() + timedelta(days=90)
     

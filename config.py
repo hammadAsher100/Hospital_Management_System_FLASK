@@ -40,6 +40,11 @@ def _sqlalchemy_database_uri():
                     '[config] Vercel: ignoring MSSQL URI (set VERCEL_USE_MSSQL=1 if ODBC works). '
                     'Using SQLite fallback so the app can boot.'
                 )
+        elif not explicit:
+            print(
+                '[config] Vercel: no DATABASE_URL / SQLALCHEMY_DATABASE_URI. '
+                'Using /tmp SQLite (ephemeral — add a PostgreSQL DATABASE_URL for persistence).'
+            )
         return 'sqlite:////tmp/hms_vercel.sqlite3'
 
     if explicit:

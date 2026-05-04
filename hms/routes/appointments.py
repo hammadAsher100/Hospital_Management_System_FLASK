@@ -6,10 +6,31 @@ from hms.models.patient import Patient
 from hms.models.doctor import Doctor, DoctorSchedule
 from hms.models.user import User
 from hms.utils import role_required
+from hms.db_queries import is_sql_server, fetch_rows, exec_procedure, rows_to_objects
 from datetime import datetime, date, timedelta
 from sqlalchemy import or_
 
 appointments_bp = Blueprint('appointments', __name__)
+
+
+def _fetch_active_doctors():
+    if is_sql_server():
+        rows = fetch_rows(
+            """
+            SELECT doctor_id, full_name, specialization, consultation_fee
+            FROM dbo.vw_ActiveDoctors
+            ORDER BY full_name
+            """
+        )
+        return rows_to_objects(rows)
+
+    return (
+        Doctor.query.join(User, Doctor.user_id == User.user_id)
+        .filter(User.is_active == True)
+        .filter(or_(Doctor.availability_status == True, Doctor.availability_status.is_(None)))
+        .order_by(Doctor.last_name)
+        .all()
+    )
 
 
 @appointments_bp.route('/')
@@ -80,13 +101,7 @@ def book_appointment():
             flash(f'Error booking appointment: {str(e)}', 'danger')
 
     patients = Patient.query.order_by(Patient.last_name).all()
-    doctors = (
-        Doctor.query.join(User, Doctor.user_id == User.user_id)
-        .filter(User.is_active == True)
-        .filter(or_(Doctor.availability_status == True, Doctor.availability_status.is_(None)))
-        .order_by(Doctor.last_name)
-        .all()
-    )
+    doctors = _fetch_active_doctors()
     preselect_patient = request.args.get('patient_id', type=int)
     return render_template('appointments/book.html', patients=patients, doctors=doctors,
                            preselect_patient=preselect_patient)
@@ -171,14 +186,21 @@ def available_slots():
         if not schedule:
             return jsonify({'slots': [], 'message': 'Doctor not available on this day'})
 
-        booked_times = {
-            str(a.appointment_time)[:5]
-            for a in Appointment.query.filter_by(
-                doctor_id=doctor_id,
-                appointment_date=appt_date,
-                status='scheduled'
-            ).all()
-        }
+        if is_sql_server():
+            rows = exec_procedure(
+                "dbo.usp_GetDoctorBookedSlots",
+                {"doctor_id": doctor_id, "appointment_date": appt_date},
+            )
+            booked_times = {str(r["appointment_time"])[:5] for r in rows}
+        else:
+            booked_times = {
+                str(a.appointment_time)[:5]
+                for a in Appointment.query.filter_by(
+                    doctor_id=doctor_id,
+                    appointment_date=appt_date,
+                    status='scheduled'
+                ).all()
+            }
 
         # Generate 30-min slots
         slots = []

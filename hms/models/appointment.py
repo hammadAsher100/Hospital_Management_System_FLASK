@@ -1,5 +1,6 @@
 from hms import db
 from datetime import datetime
+from hms.db_queries import is_sql_server, exec_procedure
 
 
 class Appointment(db.Model):
@@ -31,6 +32,18 @@ class Appointment(db.Model):
 
     @staticmethod
     def has_conflict(doctor_id, appointment_date, appointment_time, exclude_id=None):
+        if is_sql_server():
+            rows = exec_procedure(
+                "dbo.usp_CheckAppointmentConflict",
+                {
+                    "doctor_id": doctor_id,
+                    "appointment_date": appointment_date,
+                    "appointment_time": appointment_time,
+                    "exclude_id": exclude_id,
+                },
+            )
+            return bool(rows and rows[0].get("has_conflict"))
+
         query = Appointment.query.filter_by(
             doctor_id=doctor_id,
             appointment_date=appointment_date,
