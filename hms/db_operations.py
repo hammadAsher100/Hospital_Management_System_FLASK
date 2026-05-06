@@ -879,6 +879,32 @@ def mark_prescription_dispensed(prescription_id: int) -> bool:
     return bool(execute_procedure("usp_MarkPrescriptionDispensed", {"prescription_id": prescription_id}))
 
 
+def add_prescription_atomic(patient_id: int, doctor_id: int, items: list,
+                            appointment_id: int = None, notes: str = None) -> Optional[int]:
+    """Create prescription + all items in one atomic transaction.
+
+    Args:
+        patient_id: Patient receiving the prescription
+        doctor_id: Prescribing doctor
+        items: List of dicts with keys: medicine_id, dosage, frequency, duration, quantity
+        appointment_id: Optional linked appointment
+        notes: Optional prescription notes
+
+    Returns:
+        prescription_id on success, None on failure
+    """
+    import json
+    items_json = json.dumps(items)
+    rows = execute_procedure("usp_AddPrescription", {
+        "patient_id": patient_id,
+        "doctor_id": doctor_id,
+        "appointment_id": appointment_id,
+        "notes": notes,
+        "items_json": items_json
+    })
+    return int(rows[0]["id"]) if rows else None
+
+
 # ============================================================
 # ADMIN REPORT OPERATIONS
 # ============================================================
@@ -1028,3 +1054,45 @@ def get_appointment_doctor_summary() -> List[tuple]:
         "SELECT first_name, last_name, appointment_count FROM dbo.vw_AppointmentDoctorSummary"
     )
     return [(r["first_name"], r["last_name"], int(r["appointment_count"] or 0)) for r in rows]
+
+
+# ============================================================
+# AUDIT LOG OPERATIONS
+# ============================================================
+
+def list_audit_logs(table_name: str = None, operation: str = None,
+                    skip: int = 0, take: int = 50) -> List[SimpleNamespace]:
+    """Query audit logs with optional filters"""
+    conditions = ["1=1"]
+    params = {}
+    if table_name:
+        conditions.append("table_name = :table_name")
+        params["table_name"] = table_name
+    if operation:
+        conditions.append("operation = :operation")
+        params["operation"] = operation
+
+    where = " AND ".join(conditions)
+    rows = execute_query(
+        f"SELECT TOP {take} * FROM Audit_Log WHERE {where} "
+        f"ORDER BY changed_at DESC OFFSET :skip ROWS",
+        {**params, "skip": skip}
+    )
+    return rows_to_objects(rows)
+
+
+def count_audit_logs(table_name: str = None, operation: str = None) -> int:
+    """Count audit logs with optional filters"""
+    conditions = ["1=1"]
+    params = {}
+    if table_name:
+        conditions.append("table_name = :table_name")
+        params["table_name"] = table_name
+    if operation:
+        conditions.append("operation = :operation")
+        params["operation"] = operation
+
+    where = " AND ".join(conditions)
+    rows = execute_query(f"SELECT COUNT(*) AS total FROM Audit_Log WHERE {where}", params)
+    return int(rows[0]["total"]) if rows else 0
+

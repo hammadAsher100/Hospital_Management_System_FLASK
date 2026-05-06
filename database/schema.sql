@@ -208,6 +208,24 @@ CREATE TABLE Prescription_Items (
 CREATE INDEX IX_PrescItems_pres ON Prescription_Items (prescription_id);
 GO
 
+-- ── Audit Log ─────────────────────────────────────────────────
+CREATE TABLE Audit_Log (
+    log_id       INT IDENTITY(1,1) PRIMARY KEY,
+    table_name   NVARCHAR(50)  NOT NULL,
+    operation    NVARCHAR(10)  NOT NULL,
+    record_id    INT           NULL,
+    old_values   NVARCHAR(MAX) NULL,
+    new_values   NVARCHAR(MAX) NULL,
+    changed_by   NVARCHAR(100) NULL DEFAULT SYSTEM_USER,
+    changed_at   DATETIME      DEFAULT GETDATE(),
+    description  NVARCHAR(500) NULL
+);
+
+CREATE INDEX IX_AuditLog_table     ON Audit_Log (table_name);
+CREATE INDEX IX_AuditLog_operation ON Audit_Log (operation);
+CREATE INDEX IX_AuditLog_date      ON Audit_Log (changed_at);
+GO
+
 -- ── Reporting Views ──────────────────────────────────────────────
 IF OBJECT_ID('dbo.ufn_CalculateAge', 'FN') IS NOT NULL
     DROP FUNCTION dbo.ufn_CalculateAge;
@@ -1805,6 +1823,359 @@ BEGIN
     WHERE admission_id = @admission_id;
     SELECT CAST(1 AS BIT) AS success;
 END
+GO
+
+-- ════════════════════════════════════════════════════════════════
+-- TRIGGERS — Audit logging for all key operations
+-- ════════════════════════════════════════════════════════════════
+
+-- ── Appointment Triggers ─────────────────────────────────────
+IF OBJECT_ID('dbo.trg_Appointments_AuditInsert', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Appointments_AuditInsert;
+GO
+CREATE TRIGGER dbo.trg_Appointments_AuditInsert
+ON dbo.Appointments
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, new_values, description)
+    SELECT 'Appointments', 'INSERT', i.appointment_id,
+        '{"patient_id":' + CAST(i.patient_id AS NVARCHAR(10))
+            + ',"doctor_id":' + CAST(i.doctor_id AS NVARCHAR(10))
+            + ',"date":"' + CONVERT(NVARCHAR(10), i.appointment_date, 120)
+            + '","status":"' + i.status + '"}',
+        'New appointment #' + CAST(i.appointment_id AS NVARCHAR(10))
+            + ' booked for Patient ID ' + CAST(i.patient_id AS NVARCHAR(10))
+            + ' with Doctor ID ' + CAST(i.doctor_id AS NVARCHAR(10))
+            + ' on ' + CONVERT(NVARCHAR(10), i.appointment_date, 120)
+    FROM inserted i;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Appointments_AuditStatusChange', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Appointments_AuditStatusChange;
+GO
+CREATE TRIGGER dbo.trg_Appointments_AuditStatusChange
+ON dbo.Appointments
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, old_values, new_values, description)
+    SELECT 'Appointments', 'UPDATE', i.appointment_id,
+        '{"status":"' + d.status + '"}',
+        '{"status":"' + i.status + '"}',
+        'Appointment #' + CAST(i.appointment_id AS NVARCHAR(10))
+            + ' status: ' + UPPER(d.status) + ' → ' + UPPER(i.status)
+    FROM inserted i
+    INNER JOIN deleted d ON d.appointment_id = i.appointment_id
+    WHERE i.status <> d.status;
+END
+GO
+
+-- ── Billing Triggers ─────────────────────────────────────────
+IF OBJECT_ID('dbo.trg_Billing_AuditInsert', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Billing_AuditInsert;
+GO
+CREATE TRIGGER dbo.trg_Billing_AuditInsert
+ON dbo.Billing
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, new_values, description)
+    SELECT 'Billing', 'INSERT', i.bill_id,
+        '{"patient_id":' + CAST(i.patient_id AS NVARCHAR(10))
+            + ',"total_amount":' + CAST(i.total_amount AS NVARCHAR(20))
+            + ',"status":"' + i.status + '"}',
+        'Bill #' + CAST(i.bill_id AS NVARCHAR(10))
+            + ' created for Patient ID ' + CAST(i.patient_id AS NVARCHAR(10))
+            + ' — Total: $' + CAST(i.total_amount AS NVARCHAR(20))
+    FROM inserted i;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Billing_AuditPayment', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Billing_AuditPayment;
+GO
+CREATE TRIGGER dbo.trg_Billing_AuditPayment
+ON dbo.Billing
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, old_values, new_values, description)
+    SELECT 'Billing', 'UPDATE', i.bill_id,
+        '{"paid_amount":' + CAST(d.paid_amount AS NVARCHAR(20)) + ',"status":"' + d.status + '"}',
+        '{"paid_amount":' + CAST(i.paid_amount AS NVARCHAR(20)) + ',"status":"' + i.status + '"}',
+        'Bill #' + CAST(i.bill_id AS NVARCHAR(10))
+            + ' payment: $' + CAST(d.paid_amount AS NVARCHAR(20))
+            + ' → $' + CAST(i.paid_amount AS NVARCHAR(20))
+            + ' | ' + UPPER(d.status) + ' → ' + UPPER(i.status)
+    FROM inserted i
+    INNER JOIN deleted d ON d.bill_id = i.bill_id
+    WHERE i.paid_amount <> d.paid_amount OR i.status <> d.status;
+END
+GO
+
+-- ── Prescription Triggers ────────────────────────────────────
+IF OBJECT_ID('dbo.trg_Prescriptions_AuditInsert', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Prescriptions_AuditInsert;
+GO
+CREATE TRIGGER dbo.trg_Prescriptions_AuditInsert
+ON dbo.Prescriptions
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, new_values, description)
+    SELECT 'Prescriptions', 'INSERT', i.prescription_id,
+        '{"patient_id":' + CAST(i.patient_id AS NVARCHAR(10))
+            + ',"doctor_id":' + CAST(i.doctor_id AS NVARCHAR(10)) + '}',
+        'Prescription #' + CAST(i.prescription_id AS NVARCHAR(10))
+            + ' created by Doctor ID ' + CAST(i.doctor_id AS NVARCHAR(10))
+            + ' for Patient ID ' + CAST(i.patient_id AS NVARCHAR(10))
+    FROM inserted i;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Prescriptions_AuditDispensed', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Prescriptions_AuditDispensed;
+GO
+CREATE TRIGGER dbo.trg_Prescriptions_AuditDispensed
+ON dbo.Prescriptions
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, old_values, new_values, description)
+    SELECT 'Prescriptions', 'UPDATE', i.prescription_id,
+        '{"is_dispensed":0}', '{"is_dispensed":1}',
+        'Prescription #' + CAST(i.prescription_id AS NVARCHAR(10)) + ' DISPENSED'
+    FROM inserted i
+    INNER JOIN deleted d ON d.prescription_id = i.prescription_id
+    WHERE i.is_dispensed = 1 AND d.is_dispensed = 0;
+END
+GO
+
+-- ── Medicine Stock Trigger ───────────────────────────────────
+IF OBJECT_ID('dbo.trg_Medicines_AuditStockChange', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Medicines_AuditStockChange;
+GO
+CREATE TRIGGER dbo.trg_Medicines_AuditStockChange
+ON dbo.Medicines
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, old_values, new_values, description)
+    SELECT 'Medicines', 'UPDATE', i.medicine_id,
+        '{"stock_quantity":' + CAST(d.stock_quantity AS NVARCHAR(10)) + '}',
+        '{"stock_quantity":' + CAST(i.stock_quantity AS NVARCHAR(10)) + '}',
+        'Medicine "' + i.name + '" stock: '
+            + CAST(d.stock_quantity AS NVARCHAR(10)) + ' → ' + CAST(i.stock_quantity AS NVARCHAR(10))
+            + CASE WHEN i.stock_quantity <= i.reorder_level
+                   THEN ' ⚠ LOW STOCK (reorder: ' + CAST(i.reorder_level AS NVARCHAR(10)) + ')'
+                   ELSE '' END
+    FROM inserted i
+    INNER JOIN deleted d ON d.medicine_id = i.medicine_id
+    WHERE i.stock_quantity <> d.stock_quantity;
+END
+GO
+
+-- ── Patient Triggers ─────────────────────────────────────────
+IF OBJECT_ID('dbo.trg_Patients_AuditInsert', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Patients_AuditInsert;
+GO
+CREATE TRIGGER dbo.trg_Patients_AuditInsert
+ON dbo.Patients
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, new_values, description)
+    SELECT 'Patients', 'INSERT', i.patient_id,
+        '{"name":"' + i.first_name + ' ' + i.last_name + '","gender":"' + i.gender + '"}',
+        'New patient: ' + i.first_name + ' ' + i.last_name + ' (ID: ' + CAST(i.patient_id AS NVARCHAR(10)) + ')'
+    FROM inserted i;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Patients_AuditUpdate', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Patients_AuditUpdate;
+GO
+CREATE TRIGGER dbo.trg_Patients_AuditUpdate
+ON dbo.Patients
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, description)
+    SELECT 'Patients', 'UPDATE', i.patient_id,
+        'Patient "' + i.first_name + ' ' + i.last_name + '" (ID: ' + CAST(i.patient_id AS NVARCHAR(10)) + ') updated'
+    FROM inserted i;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Patients_AuditDelete', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Patients_AuditDelete;
+GO
+CREATE TRIGGER dbo.trg_Patients_AuditDelete
+ON dbo.Patients
+AFTER DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, old_values, description)
+    SELECT 'Patients', 'DELETE', d.patient_id,
+        '{"name":"' + d.first_name + ' ' + d.last_name + '"}',
+        'Patient "' + d.first_name + ' ' + d.last_name + '" (ID: ' + CAST(d.patient_id AS NVARCHAR(10)) + ') DELETED'
+    FROM deleted d;
+END
+GO
+
+-- ── User Triggers ────────────────────────────────────────────
+IF OBJECT_ID('dbo.trg_Users_AuditInsert', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Users_AuditInsert;
+GO
+CREATE TRIGGER dbo.trg_Users_AuditInsert
+ON dbo.Users
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, new_values, description)
+    SELECT 'Users', 'INSERT', i.user_id,
+        '{"username":"' + i.username + '","role":"' + i.role + '"}',
+        'New user: ' + i.username + ' (Role: ' + UPPER(i.role) + ')'
+    FROM inserted i;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Users_AuditToggleActive', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Users_AuditToggleActive;
+GO
+CREATE TRIGGER dbo.trg_Users_AuditToggleActive
+ON dbo.Users
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- Log activate/deactivate
+    INSERT INTO Audit_Log (table_name, operation, record_id, old_values, new_values, description)
+    SELECT 'Users', 'UPDATE', i.user_id,
+        '{"is_active":' + CAST(d.is_active AS NVARCHAR(1)) + '}',
+        '{"is_active":' + CAST(i.is_active AS NVARCHAR(1)) + '}',
+        'User "' + i.username + '" ' + CASE WHEN i.is_active = 1 THEN 'ACTIVATED' ELSE 'DEACTIVATED' END
+    FROM inserted i INNER JOIN deleted d ON d.user_id = i.user_id
+    WHERE i.is_active <> d.is_active;
+
+    -- Log login events
+    INSERT INTO Audit_Log (table_name, operation, record_id, description)
+    SELECT 'Users', 'UPDATE', i.user_id, 'User "' + i.username + '" logged in'
+    FROM inserted i INNER JOIN deleted d ON d.user_id = i.user_id
+    WHERE (i.last_login IS NOT NULL AND d.last_login IS NULL)
+       OR (i.last_login IS NOT NULL AND d.last_login IS NOT NULL AND i.last_login <> d.last_login);
+END
+GO
+
+-- ── Admission Triggers ───────────────────────────────────────
+IF OBJECT_ID('dbo.trg_Admissions_AuditInsert', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Admissions_AuditInsert;
+GO
+CREATE TRIGGER dbo.trg_Admissions_AuditInsert
+ON dbo.Admissions
+AFTER INSERT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, new_values, description)
+    SELECT 'Admissions', 'INSERT', i.admission_id,
+        '{"patient_id":' + CAST(i.patient_id AS NVARCHAR(10))
+            + ',"room":"' + ISNULL(i.room_number, 'N/A') + '"}',
+        'Patient ID ' + CAST(i.patient_id AS NVARCHAR(10))
+            + ' admitted to room ' + ISNULL(i.room_number, 'TBD')
+    FROM inserted i;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Admissions_AuditDischarge', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Admissions_AuditDischarge;
+GO
+CREATE TRIGGER dbo.trg_Admissions_AuditDischarge
+ON dbo.Admissions
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Audit_Log (table_name, operation, record_id, description)
+    SELECT 'Admissions', 'UPDATE', i.admission_id,
+        'Patient ID ' + CAST(i.patient_id AS NVARCHAR(10))
+            + ' DISCHARGED (Admission #' + CAST(i.admission_id AS NVARCHAR(10)) + ')'
+    FROM inserted i
+    INNER JOIN deleted d ON d.admission_id = i.admission_id
+    WHERE i.discharge_date IS NOT NULL AND d.discharge_date IS NULL;
+END
+GO
+
+-- ════════════════════════════════════════════════════════════════
+-- usp_AddPrescription — Atomic prescription + items creation
+-- ════════════════════════════════════════════════════════════════
+
+IF OBJECT_ID('dbo.usp_AddPrescription', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_AddPrescription;
+GO
+CREATE PROCEDURE dbo.usp_AddPrescription
+    @patient_id     INT,
+    @doctor_id      INT,
+    @appointment_id INT = NULL,
+    @notes          NVARCHAR(MAX) = NULL,
+    @items_json     NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @prescription_id INT;
+
+    BEGIN TRANSACTION;
+    BEGIN TRY
+        INSERT INTO Prescriptions (patient_id, doctor_id, appointment_id, notes, is_dispensed)
+        VALUES (@patient_id, @doctor_id, @appointment_id, @notes, 0);
+
+        SET @prescription_id = SCOPE_IDENTITY();
+
+        INSERT INTO Prescription_Items (prescription_id, medicine_id, dosage, frequency, duration, quantity)
+        SELECT @prescription_id, CAST(j.medicine_id AS INT), j.dosage, j.frequency, j.duration, ISNULL(CAST(j.quantity AS INT), 1)
+        FROM OPENJSON(@items_json)
+        WITH (
+            medicine_id INT           '$.medicine_id',
+            dosage      NVARCHAR(50)  '$.dosage',
+            frequency   NVARCHAR(50)  '$.frequency',
+            duration    NVARCHAR(50)  '$.duration',
+            quantity    INT           '$.quantity'
+        ) AS j
+        WHERE j.medicine_id IS NOT NULL;
+
+        COMMIT TRANSACTION;
+        SELECT @prescription_id AS id;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END
+GO
+
+-- ── Audit Log Summary View ───────────────────────────────────
+IF OBJECT_ID('dbo.vw_AuditLogSummary', 'V') IS NOT NULL
+    DROP VIEW dbo.vw_AuditLogSummary;
+GO
+CREATE VIEW dbo.vw_AuditLogSummary AS
+SELECT log_id, table_name, operation, record_id, description, changed_by, changed_at,
+    CASE operation WHEN 'INSERT' THEN 'Created' WHEN 'UPDATE' THEN 'Modified' WHEN 'DELETE' THEN 'Deleted' ELSE operation END AS operation_label
+FROM Audit_Log;
 GO
 
 PRINT 'Schema created successfully. Run seed.sql next.';
