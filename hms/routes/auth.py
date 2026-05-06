@@ -24,7 +24,19 @@ def login():
 
         if user and user.check_password(password) and user.is_active:
             # Validate that user is trying to access the correct module
-            if not validate_module_access(user, user_module):
+            # For doctors: allow both 'doctor' and 'staff' module access
+            # For patients: allow only 'patient' module access
+            # For other staff: allow only 'staff' module access
+            if user.is_doctor() and user_module in ['doctor', 'staff']:
+                access_allowed = True
+            elif user.is_patient() and user_module == 'patient':
+                access_allowed = True
+            elif user.is_staff() and user_module == 'staff':
+                access_allowed = True
+            else:
+                access_allowed = False
+            
+            if not access_allowed:
                 flash('You do not have access to this module.', 'danger')
                 return render_template('auth/login.html')
             
@@ -150,13 +162,20 @@ def signup():
 
 
 def validate_module_access(user, module):
-    """Validate if user can access the selected module"""
-    if module == 'patient':
-        return user.is_patient()
-    elif module == 'doctor':
-        return user.is_doctor()
-    elif module == 'staff':
-        return user.is_staff()
+    """Validate if user can access the selected module.
+    
+    Access rules:
+    - Doctors: can access 'doctor' OR 'staff' module
+    - Patients: can access only 'patient' module
+    - Other staff (nurses, billing, admin): can access only 'staff' module
+    """
+    if user.is_doctor():
+        # Doctors have special access to both doctor and staff modules
+        return module in ['doctor', 'staff']
+    elif user.is_patient():
+        return module == 'patient'
+    elif user.is_staff():
+        return module == 'staff'
     return False
 
 
