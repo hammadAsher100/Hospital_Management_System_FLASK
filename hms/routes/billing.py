@@ -274,14 +274,18 @@ def generate_bill():
         appointments = db_operations.list_completed_appointments(patient_id=current_patient.patient_id, skip=0, take=500)
     else:
         patients = [_map_patient(p) for p in db_operations.list_patients(skip=0, take=10000)]
-        appointments = db_operations.list_completed_appointments(skip=0, take=10000)
+        # Filter appointments by selected patient so dropdown is relevant
+        filter_patient = request.args.get('patient_id', type=int)
+        appointments = db_operations.list_completed_appointments(
+            patient_id=filter_patient, skip=0, take=10000
+        ) if filter_patient else []
 
     preselect = request.args.get('patient_id', type=int)
     preselect_appointment = request.args.get('appointment_id', type=int)
     default_bill_items = []
     if patient_user and not preselect_appointment and appointments:
         preselect_appointment = appointments[0].appointment_id
-    if patient_user and preselect_appointment:
+    if preselect_appointment:
         selected_appt = next((a for a in appointments if a.appointment_id == preselect_appointment), None)
         if selected_appt:
             default_bill_items = _build_patient_bill_items(selected_appt)
