@@ -58,7 +58,7 @@
                             </td>
                             <td class="text-muted">{{ med.reorder_level }}</td>
                             <td>
-                                <a href="{{ url_for('pharmacy.edit_medicine', id=med.medicine_id) }}" class="btn btn-sm btn-outline-primary">Restock</a>
+                                <a href="{{ url_for('pharmacy.list_medicines', focus=med.medicine_id) }}" class="btn btn-sm btn-outline-primary">Restock</a>
                             </td>
                         </tr>
                         {% endfor %}

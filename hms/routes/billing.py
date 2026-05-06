@@ -61,8 +61,12 @@ def _map_bill(b):
     bill.bill_date = _to_datetime(b.bill_date)
     bill.total_amount = float(b.total_amount or 0)
     bill.paid_amount = float(b.paid_amount or 0)
+    raw_status = getattr(b, 'status', '') or ''
+    if isinstance(raw_status, bytes):
+        raw_status = raw_status.decode(errors='ignore')
+    bill.status = str(raw_status).strip().lower() or 'pending'
     bill.get_balance = lambda x=bill: x.total_amount - x.paid_amount
-    bill.status_badge = _status_badge(b.status)
+    bill.status_badge = _status_badge(bill.status)
     bill.patient = SimpleNamespace(
         full_name=getattr(b, 'patient_full_name', ''),
         phone=getattr(b, 'patient_phone', ''),
@@ -309,9 +313,10 @@ def record_payment(id):
             elif amount > bill.get_balance():
                 flash(f'Amount exceeds balance of ${bill.get_balance():.2f}.', 'danger')
             else:
-                db_operations.record_payment(id, amount, method)
-                flash(f'Payment of ${amount:.2f} recorded.', 'success')
-                return redirect(url_for('billing.view_bill', id=id))
+                if db_operations.record_payment(id, amount, method):
+                    flash(f'Payment of ${amount:.2f} recorded.', 'success')
+                    return redirect(url_for('billing.view_bill', id=id))
+                flash('Payment could not be saved. Check server logs.', 'danger')
         except Exception as e:
             flash(f'Error recording payment: {str(e)}', 'danger')
 

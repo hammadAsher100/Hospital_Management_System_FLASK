@@ -89,6 +89,14 @@ def signup():
             return render_template('auth/signup.html')
 
         try:
+            # Pre-check uniques to return accurate messages (avoid relying on DB error strings).
+            if db_operations.get_user_by_username(username):
+                flash('Username already exists.', 'danger')
+                return render_template('auth/signup.html')
+            if db_operations.get_user_by_email(email):
+                flash('Email already exists.', 'danger')
+                return render_template('auth/signup.html')
+
             # Create user account
             user = User(
                 user_id=0,  # Will be set by database
@@ -135,13 +143,7 @@ def signup():
             flash('Account created successfully! Please log in.', 'success')
             return redirect(url_for('auth.login'))
         except Exception as e:
-            error_text = str(e).lower()
-            if 'username' in error_text:
-                flash('Username already exists.', 'danger')
-            elif 'email' in error_text:
-                flash('Email already exists.', 'danger')
-            else:
-                flash(f'Error creating account: {str(e)}', 'danger')
+            flash(f'Error creating account: {str(e)}', 'danger')
             return render_template('auth/signup.html')
     
     return render_template('auth/signup.html')

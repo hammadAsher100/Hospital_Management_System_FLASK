@@ -83,7 +83,7 @@ Reads `.env` variables and builds connection parameters:
 ```
 
 For your local setup, it defaults to:
-- **Server:** `localhost\SQLEXPRESS`
+- **Server:** `WIN-TRVHSOF4C32\SQLEXPRESS`
 - **Database:** `HMS_DB`
 - **Driver:** `ODBC Driver 17 for SQL Server`
 - **Auth:** Windows Trusted Connection (when no username/password set)

@@ -49,8 +49,12 @@ def is_postgres():
     return False
 
 
-def execute_query(sql: str, params: Any = None) -> List[Dict]:
-    """Execute SELECT query and return list of dictionaries"""
+def execute_query(sql: str, params: Any = None, commit_after: bool = False) -> List[Dict]:
+    """Execute a SQL statement and return row dicts.
+
+    Stored procedures that perform INSERT/UPDATE must set ``commit_after=True`` so
+    changes persist before the connection closes (pyodbc does not autocommit by default).
+    """
     conn = None
     try:
         conn = db.get_connection()
@@ -60,18 +64,35 @@ def execute_query(sql: str, params: Any = None) -> List[Dict]:
             cursor.execute(sql, params)
         else:
             cursor.execute(sql)
-        
-        # Check if there's a result set
-        if cursor.description is None:
-            cursor.close()
-            return []
-        
-        columns = [column[0] for column in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        # SQL Server nested EXEC (e.g. usp_RecordPayment calling usp_RefreshBillTotals) can yield
+        # multiple sequential result sets. We must iterate with nextset() and keep the latest
+        # nonempty SELECT so pyodbc/ODBC completes the batch reliably and callers still get
+        # the typical final result row (e.g. SCOPE_IDENTITY / success bit).
+        rows_out: List[Dict] = []
+        while True:
+            if cursor.description is not None:
+                columns = [column[0] for column in cursor.description]
+                batch = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                if batch:
+                    rows_out = batch
+            try:
+                if not cursor.nextset():
+                    break
+            except Exception:
+                break
+
         cursor.close()
-        return rows
+        if commit_after:
+            conn.commit()
+        return rows_out
     except Exception as e:
         print(f"Query Error: {str(e)}")
+        if conn and commit_after:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
         return []
     finally:
         if conn:
@@ -89,7 +110,7 @@ def execute_procedure(procedure_name: str, params: Dict[str, Any] = None) -> Lis
     # Convert to tuple for pyodbc
     param_tuple = tuple(params.values()) if params else None
     
-    return execute_query(sql, param_tuple)
+    return execute_query(sql, param_tuple, commit_after=True)
 
 
 def execute_update(sql: str, params: Any = None) -> bool:
@@ -170,6 +191,17 @@ def dict_to_object(row_dict: Dict) -> SimpleNamespace:
 def get_user_by_username(username: str) -> Optional[SimpleNamespace]:
     """Get user by username"""
     rows = execute_procedure("usp_GetUserByUsername", {"username": username})
+    return dict_to_object(rows[0]) if rows else None
+
+
+def get_user_by_email(email: str) -> Optional[SimpleNamespace]:
+    """Get user by email (direct query)."""
+    if not email:
+        return None
+    rows = execute_query(
+        "SELECT user_id, username, password_hash, role, email, full_name, created_at, last_login, is_active FROM Users WHERE email = ?",
+        (email,),
+    )
     return dict_to_object(rows[0]) if rows else None
 
 

@@ -16,7 +16,8 @@ class User(UserMixin):
         self.user_id = user_id
         self.username = username
         self.password_hash = password_hash
-        self.role = role
+        # Normalize because some DB seeds/imports can include casing/whitespace.
+        self.role = (role or "").strip().lower()
         self.email = email
         self.full_name = full_name
         self.created_at = created_at or datetime.utcnow()

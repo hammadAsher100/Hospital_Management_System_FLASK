@@ -39,7 +39,7 @@ def get_db_connection_params():
     if explicit:
         return {'uri': explicit, 'type': 'mssql' if 'mssql' in explicit.lower() else 'unknown'}
 
-    server = os.environ.get('DB_SERVER', r'localhost\SQLEXPRESS')
+    server = os.environ.get('DB_SERVER', r'WIN-TRVHSOF4C32\SQLEXPRESS')
     db_name = os.environ.get('DB_NAME', 'HMS_DB')
     username = os.environ.get('DB_USERNAME', '')
     password = os.environ.get('DB_PASSWORD', '')
@@ -68,7 +68,7 @@ def _sqlalchemy_database_uri():
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
 
-    DB_SERVER = os.environ.get('DB_SERVER', r'localhost\SQLEXPRESS')
+    DB_SERVER = os.environ.get('DB_SERVER', r'WIN-TRVHSOF4C32\SQLEXPRESS')
     DB_NAME = os.environ.get('DB_NAME', 'HMS_DB')
     DB_USERNAME = os.environ.get('DB_USERNAME', '')
     DB_PASSWORD = os.environ.get('DB_PASSWORD', '')

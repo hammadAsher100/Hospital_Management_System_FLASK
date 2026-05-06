@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from hms import db
+from hms import db, db_operations
 from hms.db_queries import exec_procedure, fetch_rows, is_sql_server, rows_to_objects
 from hms.utils import role_required
 
@@ -291,9 +291,11 @@ def view_patient(id):
     tab = request.args.get("tab", "info")
     appts = [_map_appointment(r) for r in fetch_rows(_appointment_sql("a.patient_id = :pid", "a.appointment_date DESC, a.appointment_time DESC"), {"pid": id})]
     rx = []
-    for row in fetch_rows("SELECT * FROM Prescriptions WHERE patient_id = :pid ORDER BY prescribed_date DESC", {"pid": id}):
-        x = SimpleNamespace(**dict(row))
+    for pr in db_operations.list_prescriptions(patient_id=id, skip=0, take=500):
+        x = SimpleNamespace(**pr.__dict__)
         x.prescribed_date = _parse_dt(x.prescribed_date)
+        x.doctor = SimpleNamespace(full_name=getattr(x, "doctor_full_name", None) or "—")
+        x.items = db_operations.get_prescription_items(x.prescription_id)
         rx.append(x)
     bills = []
     for row in fetch_rows("SELECT * FROM Billing WHERE patient_id = :pid ORDER BY bill_date DESC", {"pid": id}):

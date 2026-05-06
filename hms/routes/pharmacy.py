@@ -88,6 +88,7 @@ def dashboard():
 def list_medicines():
     search = request.args.get('search', '').strip()
     category = request.args.get('category', '').strip()
+    focus_med_id = request.args.get('focus', type=int)
     page = request.args.get('page', 1, type=int)
     per_page = 20
     skip = (page - 1) * per_page
@@ -96,7 +97,14 @@ def list_medicines():
     meds = db_operations.list_medicines(search=search or None, category=category or None, skip=skip, take=per_page)
     medicines = SimplePagination([_map_medicine(m) for m in meds], page, per_page, total)
     categories = db_operations.list_medicine_categories()
-    return render_template('pharmacy/medicines.html', medicines=medicines, categories=categories, search=search, category=category)
+    return render_template(
+        'pharmacy/medicines.html',
+        medicines=medicines,
+        categories=categories,
+        search=search,
+        category=category,
+        focus_med_id=focus_med_id,
+    )
 
 
 @pharmacy_bp.route('/medicines/add', methods=['GET', 'POST'])
@@ -114,7 +122,13 @@ def add_medicine():
                 reorder_level=int(request.form.get('reorder_level', 10)),
                 expiry_date=datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date() if request.form.get('expiry_date') else None,
             )
+            if not med_id:
+                flash('Could not save medicine — no row id returned from the database.', 'danger')
+                return render_template('pharmacy/medicine_form.html', medicine=None)
             med = db_operations.get_medicine_by_id(med_id)
+            if not med:
+                flash('Medicine may have been saved but could not be reloaded.', 'warning')
+                return redirect(url_for('pharmacy.list_medicines'))
             flash(f'{med.name} added to inventory.', 'success')
             return redirect(url_for('pharmacy.list_medicines'))
         except Exception as e:
@@ -150,6 +164,44 @@ def edit_medicine(id):
             flash(f'Error: {str(e)}', 'danger')
 
     return render_template('pharmacy/medicine_form.html', medicine=med)
+
+
+@pharmacy_bp.route('/medicines/restock', methods=['POST'])
+@login_required
+@role_required('admin', 'billing')
+def restock_medicine():
+    """Add/remove stock via form body (avoids brittle URL rewriting in JS)."""
+    try:
+        med_id = int(request.form['medicine_id'])
+    except (KeyError, TypeError, ValueError):
+        flash('Invalid medicine.', 'danger')
+        return redirect(url_for('pharmacy.list_medicines'))
+
+    med = db_operations.get_medicine_by_id(med_id)
+    if not med:
+        flash('Medicine not found.', 'danger')
+        return redirect(url_for('pharmacy.list_medicines'))
+
+    qty = int(request.form.get('quantity', 0))
+    action = request.form.get('action', 'add')
+
+    if qty <= 0:
+        flash('Quantity must be at least 1.', 'danger')
+        return redirect(url_for('pharmacy.list_medicines'))
+
+    if action == 'add':
+        db_operations.update_medicine_stock(med_id, qty)
+        flash(f'Added {qty} units to {med.name}.', 'success')
+    elif action == 'remove':
+        if int(med.stock_quantity or 0) >= qty:
+            db_operations.update_medicine_stock(med_id, -qty)
+            flash(f'Removed {qty} units from {med.name}.', 'warning')
+        else:
+            flash('Insufficient stock.', 'danger')
+    else:
+        flash('Invalid stock action.', 'danger')
+
+    return redirect(url_for('pharmacy.list_medicines'))
 
 
 @pharmacy_bp.route('/medicines/<int:id>/stock', methods=['POST'])

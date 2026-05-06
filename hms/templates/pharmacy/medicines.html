@@ -31,7 +31,7 @@
                 </thead>
                 <tbody>
                 {% for med in medicines.items %}
-                <tr class="{{ 'table-danger bg-danger-subtle' if med.stock_quantity == 0 else ('table-warning bg-warning-subtle' if med.is_low_stock() else '') }}">
+                <tr id="medicine-row-{{ med.medicine_id }}" class="{{ 'table-danger bg-danger-subtle' if med.stock_quantity == 0 else ('table-warning bg-warning-subtle' if med.is_low_stock() else '') }}">
                     <td class="fw-medium">
                         {{ med.name }}
                         {% if med.is_low_stock() %}
@@ -59,8 +59,8 @@
                     <td>
                         <div class="btn-group btn-group-sm">
                             <a href="{{ url_for('pharmacy.edit_medicine', id=med.medicine_id) }}" class="btn btn-outline-primary" title="Edit"><i class="bi bi-pencil"></i></a>
-                            <button class="btn btn-outline-success" title="Add Stock"
-                                    onclick="showStockModal({{ med.medicine_id }}, '{{ med.name }}', 'add')">
+                            <button type="button" class="btn btn-outline-success stock-modal-btn" title="Add Stock"
+                                    data-stock-action="add" data-stock-id="{{ med.medicine_id }}" data-stock-name="{{ med.name }}">
                                 <i class="bi bi-plus-lg"></i>
                             </button>
                         </div>
@@ -95,11 +95,12 @@
     <div class="modal-dialog modal-sm">
         <div class="modal-content">
             <div class="modal-header"><h6 class="modal-title" id="stockModalTitle">Update Stock</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-            <form method="POST" id="stockForm">
+            <form method="POST" id="stockForm" action="{{ url_for('pharmacy.restock_medicine') }}">
                 <div class="modal-body">
+                    <input type="hidden" name="medicine_id" id="stockMedicineId" value="">
                     <input type="hidden" name="action" id="stockAction" value="add">
                     <label class="form-label">Quantity</label>
-                    <input type="number" name="quantity" class="form-control hms-input" min="1" value="1" required>
+                    <input type="number" name="quantity" id="stockQuantity" class="form-control hms-input" min="1" value="1" required>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -114,11 +115,23 @@
 {% block extra_js %}
 <script>
 const today = new Date().toISOString().split('T')[0];
-function showStockModal(id, name, action) {
-    document.getElementById('stockModalTitle').textContent = `${action === 'add' ? 'Add' : 'Remove'} Stock — ${name}`;
+function openStockModal(medId, medName, action) {
+    document.getElementById('stockMedicineId').value = medId;
+    document.getElementById('stockModalTitle').textContent = `${action === 'add' ? 'Add' : 'Remove'} Stock — ${medName}`;
     document.getElementById('stockAction').value = action;
-    document.getElementById('stockForm').action = `/pharmacy/medicines/${id}/stock`;
+    document.getElementById('stockQuantity').min = 1;
     new bootstrap.Modal(document.getElementById('stockModal')).show();
 }
+document.body.addEventListener('click', function (e) {
+    const btn = e.target.closest('.stock-modal-btn');
+    if (!btn) return;
+    openStockModal(btn.dataset.stockId, btn.dataset.stockName || 'Medicine', btn.dataset.stockAction || 'add');
+});
+{% if focus_med_id %}
+(function () {
+    const row = document.getElementById('medicine-row-{{ focus_med_id }}');
+    if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+})();
+{% endif %}
 </script>
 {% endblock %}
