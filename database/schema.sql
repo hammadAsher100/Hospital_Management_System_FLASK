@@ -893,6 +893,108 @@ GO
 IF OBJECT_ID('dbo.usp_CountMedicines', 'P') IS NOT NULL
     DROP PROCEDURE dbo.usp_CountMedicines;
 GO
+IF OBJECT_ID('dbo.usp_GetMedicineById', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetMedicineById;
+GO
+CREATE PROCEDURE dbo.usp_GetMedicineById
+    @medicine_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT medicine_id, name, category, manufacturer, unit_price, stock_quantity, reorder_level, expiry_date
+    FROM Medicines
+    WHERE medicine_id = @medicine_id;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_CreateMedicine', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_CreateMedicine;
+GO
+CREATE PROCEDURE dbo.usp_CreateMedicine
+    @name NVARCHAR(100),
+    @category NVARCHAR(50) = NULL,
+    @manufacturer NVARCHAR(100) = NULL,
+    @unit_price DECIMAL(10,2),
+    @stock_quantity INT = 0,
+    @reorder_level INT = 10,
+    @expiry_date DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Medicines (name, category, manufacturer, unit_price, stock_quantity, reorder_level, expiry_date)
+    VALUES (
+        @name,
+        NULLIF(LTRIM(RTRIM(@category)), ''),
+        NULLIF(LTRIM(RTRIM(@manufacturer)), ''),
+        @unit_price,
+        CASE WHEN @stock_quantity < 0 THEN 0 ELSE @stock_quantity END,
+        CASE WHEN @reorder_level < 0 THEN 0 ELSE @reorder_level END,
+        @expiry_date
+    );
+    SELECT CAST(SCOPE_IDENTITY() AS INT) AS id;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_UpdateMedicine', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_UpdateMedicine;
+GO
+CREATE PROCEDURE dbo.usp_UpdateMedicine
+    @medicine_id INT,
+    @name NVARCHAR(100),
+    @category NVARCHAR(50) = NULL,
+    @manufacturer NVARCHAR(100) = NULL,
+    @unit_price DECIMAL(10,2),
+    @reorder_level INT = 10,
+    @expiry_date DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE Medicines
+    SET
+        name = @name,
+        category = NULLIF(LTRIM(RTRIM(@category)), ''),
+        manufacturer = NULLIF(LTRIM(RTRIM(@manufacturer)), ''),
+        unit_price = @unit_price,
+        reorder_level = CASE WHEN @reorder_level < 0 THEN 0 ELSE @reorder_level END,
+        expiry_date = @expiry_date
+    WHERE medicine_id = @medicine_id;
+
+    SELECT CAST(CASE WHEN @@ROWCOUNT > 0 THEN 1 ELSE 0 END AS BIT) AS success;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_UpdateMedicineStock', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_UpdateMedicineStock;
+GO
+CREATE PROCEDURE dbo.usp_UpdateMedicineStock
+    @medicine_id INT,
+    @quantity INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE Medicines
+    SET stock_quantity = stock_quantity + @quantity
+    WHERE medicine_id = @medicine_id
+      AND stock_quantity + @quantity >= 0;
+
+    SELECT CAST(CASE WHEN @@ROWCOUNT > 0 THEN 1 ELSE 0 END AS BIT) AS success;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_GetLowStockMedicines', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetLowStockMedicines;
+GO
+CREATE PROCEDURE dbo.usp_GetLowStockMedicines
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT medicine_id, name, category, manufacturer, unit_price, stock_quantity, reorder_level, expiry_date
+    FROM Medicines
+    WHERE stock_quantity <= reorder_level
+    ORDER BY stock_quantity ASC, name ASC;
+END
+GO
+
 CREATE PROCEDURE dbo.usp_CountMedicines
     @search NVARCHAR(100) = NULL,
     @category NVARCHAR(50) = NULL

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from math import ceil
 from types import SimpleNamespace
 
@@ -104,6 +104,7 @@ def list_medicines():
         search=search,
         category=category,
         focus_med_id=focus_med_id,
+        today=date.today(),
     )
 
 
