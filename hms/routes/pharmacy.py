@@ -287,11 +287,12 @@ def add_prescription():
     patients = db_operations.list_patients(skip=0, take=10000)
     doctors = db_operations.list_active_doctors()
     medicines = [_map_medicine(m) for m in db_operations.list_medicines(skip=0, take=10000) if int(m.stock_quantity or 0) > 0]
+    appointments = db_operations.list_completed_appointments(skip=0, take=10000)
     doctor_id = None
     if current_user.is_doctor():
         doctor = db_operations.get_doctor_by_user_id(current_user.user_id)
         doctor_id = doctor.doctor_id if doctor else None
-    return render_template('pharmacy/prescription_form.html', patients=patients, doctors=doctors, medicines=medicines, current_doctor_id=doctor_id)
+    return render_template('pharmacy/prescription_form.html', patients=patients, doctors=doctors, medicines=medicines, appointments=appointments, current_doctor_id=doctor_id)
 
 
 @pharmacy_bp.route('/prescriptions/<int:id>/dispense', methods=['POST'])

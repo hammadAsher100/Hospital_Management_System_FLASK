@@ -10,7 +10,7 @@
             <div class="row g-3 mb-4">
                 <div class="col-md-4">
                     <label class="form-label required">Patient</label>
-                    <select name="patient_id" class="form-select hms-input" required>
+                    <select name="patient_id" id="patientSelect" class="form-select hms-input" required>
                         <option value="">Select patient...</option>
                         {% for p in patients %}
                         <option value="{{ p.patient_id }}">{{ p.full_name }} — {{ p.phone }}</option>
@@ -29,6 +29,20 @@
                     </select>
                 </div>
                 <div class="col-md-4">
+                    <label class="form-label">Link to Appointment</label>
+                    <select name="appointment_id" id="appointmentSelect" class="form-select hms-input">
+                        <option value="">None (standalone prescription)</option>
+                        {% for a in appointments %}
+                        <option value="{{ a.appointment_id }}" data-patient-id="{{ a.patient_id }}">
+                            #{{ a.appointment_id }} — {{ a.appointment_date.strftime('%d %b %Y') }} ({{ a.patient_full_name }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Link to show medicines on the patient's bill</small>
+                </div>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-12">
                     <label class="form-label">Notes</label>
                     <textarea name="notes" class="form-control hms-input" rows="1" placeholder="General notes..."></textarea>
                 </div>
@@ -95,5 +109,29 @@ function addRxItem() {
     clone.querySelector('.remove-rx').onclick = () => clone.remove();
     container.appendChild(clone);
 }
+
+/* Filter appointment dropdown to only show selected patient's appointments */
+document.getElementById('patientSelect')?.addEventListener('change', function() {
+    const selectedPatient = this.value;
+    const apptSelect = document.getElementById('appointmentSelect');
+    if (!apptSelect) return;
+
+    apptSelect.value = '';
+    Array.from(apptSelect.options).forEach(opt => {
+        if (!opt.value) return; // keep "None" option
+        opt.style.display = (opt.dataset.patientId === selectedPatient) ? '' : 'none';
+    });
+});
+
+/* Auto-select patient when appointment is chosen */
+document.getElementById('appointmentSelect')?.addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    if (opt && opt.dataset.patientId) {
+        document.getElementById('patientSelect').value = opt.dataset.patientId;
+    }
+});
+
+/* Filter on page load if patient already selected */
+document.getElementById('patientSelect')?.dispatchEvent(new Event('change'));
 </script>
 {% endblock %}
