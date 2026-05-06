@@ -26,7 +26,7 @@
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">Link to Appointment (optional)</label>
-                    <select name="appointment_id" class="form-select hms-input">
+                    <select name="appointment_id" id="appointmentSelect" class="form-select hms-input" {% if is_patient_user %}required{% endif %}>
                         <option value="">None</option>
                         {% for a in appointments %}
                         <option value="{{ a.appointment_id }}" {% if preselect_appointment == a.appointment_id %}selected{% endif %}>
@@ -55,10 +55,33 @@
             <!-- Bill Items -->
             <h6 class="fw-semibold mb-3">Bill Items</h6>
             <div id="billItems">
+                {% if is_patient_user and default_bill_items %}
+                {% for item in default_bill_items %}
                 <div class="row g-2 align-items-end mb-2 bill-item-row">
                     <div class="col-md-5">
                         <label class="form-label small">Description</label>
-                        <input type="text" name="description[]" class="form-control form-control-sm hms-input" placeholder="e.g. Consultation fee" value="{{ default_item_description }}" required>
+                        <input type="text" name="description[]" class="form-control form-control-sm hms-input" value="{{ item.description }}" readonly required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small">Qty</label>
+                        <input type="number" name="quantity[]" class="form-control form-control-sm hms-input qty-input" min="1" value="{{ item.quantity }}" readonly required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small">Unit Price ($)</label>
+                        <input type="number" name="unit_price[]" class="form-control form-control-sm hms-input price-input" min="0" step="0.01" value="{{ '%.2f'|format(item.unit_price) }}" readonly required>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label small">Total</label>
+                        <div class="item-total fw-medium pt-1 mono-text">{{ '%.2f'|format(item.quantity * item.unit_price) }}</div>
+                    </div>
+                    <div class="col-md-1"></div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="row g-2 align-items-end mb-2 bill-item-row">
+                    <div class="col-md-5">
+                        <label class="form-label small">Description</label>
+                        <input type="text" name="description[]" class="form-control form-control-sm hms-input" placeholder="e.g. Consultation fee" required>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small">Qty</label>
@@ -66,7 +89,7 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small">Unit Price ($)</label>
-                        <input type="number" name="unit_price[]" class="form-control form-control-sm hms-input price-input" min="0" step="0.01" placeholder="0.00" value="{{ default_item_price }}" required>
+                        <input type="number" name="unit_price[]" class="form-control form-control-sm hms-input price-input" min="0" step="0.01" placeholder="0.00" required>
                     </div>
                     <div class="col-md-1">
                         <label class="form-label small">Total</label>
@@ -78,6 +101,7 @@
                         {% endif %}
                     </div>
                 </div>
+                {% endif %}
             </div>
 
             {% if not is_patient_user %}
@@ -131,5 +155,17 @@ function addItem() {
 
 document.querySelectorAll('.qty-input, .price-input').forEach(inp => inp.addEventListener('input', updateTotals));
 updateTotals();
+{% if is_patient_user %}
+document.getElementById('appointmentSelect')?.addEventListener('change', function () {
+    const params = new URLSearchParams(window.location.search);
+    const selected = this.value || '';
+    if (selected) {
+        params.set('appointment_id', selected);
+    } else {
+        params.delete('appointment_id');
+    }
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+});
+{% endif %}
 </script>
 {% endblock %}

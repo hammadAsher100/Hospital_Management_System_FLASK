@@ -56,6 +56,49 @@ def _map_patient(p):
     )
 
 
+def _build_patient_bill_items(appointment) -> list:
+    """Build locked bill lines for a patient from appointment + prescriptions."""
+    items = []
+    doctor_name = getattr(appointment, 'doctor_full_name', 'Doctor')
+    consult_fee = float(getattr(appointment, 'consultation_fee', 0) or 0)
+    if consult_fee <= 0 and getattr(appointment, 'doctor_id', None):
+        # Fallback: some DB views/procedures can omit consultation_fee; pull from doctor record.
+        doctor = db_operations.get_doctor_by_id(int(appointment.doctor_id))
+        if doctor:
+            consult_fee = float(getattr(doctor, 'consultation_fee', 0) or 0)
+            if not doctor_name or doctor_name == 'Doctor':
+                doctor_name = f"Dr. {getattr(doctor, 'first_name', '')} {getattr(doctor, 'last_name', '')}".strip()
+    if consult_fee > 0:
+        items.append({
+            'description': f'Consultation Fee - {doctor_name}',
+            'quantity': 1,
+            'unit_price': consult_fee,
+        })
+
+    # Gather all prescription lines tied to this appointment and aggregate quantities by medicine.
+    rx_rows = db_operations.list_prescriptions(patient_id=appointment.patient_id, skip=0, take=500)
+    rx_for_appt = [r for r in rx_rows if int(getattr(r, 'appointment_id', 0) or 0) == int(appointment.appointment_id)]
+    aggregated = {}
+    for rx in rx_for_appt:
+        for it in db_operations.get_prescription_items(rx.prescription_id):
+            med_id = int(getattr(it, 'medicine_id', 0) or 0)
+            if med_id <= 0:
+                continue
+            med = db_operations.get_medicine_by_id(med_id)
+            if not med:
+                continue
+            if med_id not in aggregated:
+                aggregated[med_id] = {
+                    'description': f"Medicine - {getattr(med, 'name', 'Unknown')}",
+                    'quantity': 0,
+                    'unit_price': float(getattr(med, 'unit_price', 0) or 0),
+                }
+            aggregated[med_id]['quantity'] += int(getattr(it, 'quantity', 1) or 1)
+
+    items.extend(aggregated.values())
+    return items
+
+
 def _map_bill(b):
     bill = SimpleNamespace(**b.__dict__)
     bill.bill_date = _to_datetime(b.bill_date)
@@ -180,19 +223,19 @@ def generate_bill():
                 if existing_bill:
                     flash('A bill is already generated for this appointment.', 'warning')
                     return redirect(url_for('billing.view_bill', id=existing_bill.bill_id))
+            elif patient_user:
+                flash('Please select a completed appointment.', 'danger')
+                return redirect(url_for('billing.generate_bill'))
 
-            if patient_user and appointment and (not descriptions or not any(d.strip() for d in descriptions)):
-                descriptions = [f"Consultation Fee - {appointment.doctor_full_name}"]
-                quantities = ['1']
-                unit_prices = [str(float(getattr(appointment, 'consultation_fee', 0) or 0))]
+            if patient_user and appointment:
+                locked_items = _build_patient_bill_items(appointment)
+                descriptions = [x['description'] for x in locked_items]
+                quantities = [str(x['quantity']) for x in locked_items]
+                unit_prices = [str(x['unit_price']) for x in locked_items]
 
             if not descriptions or not any(d.strip() for d in descriptions):
                 flash('Please add at least one item.', 'danger')
                 raise ValueError('No items')
-
-            if patient_user and len([d for d in descriptions if d and d.strip()]) > 1:
-                flash('Patients can only generate a bill with one item.', 'danger')
-                return redirect(url_for('billing.generate_bill'))
 
             bill_id = db_operations.create_bill(
                 patient_id=patient_id,
@@ -235,13 +278,15 @@ def generate_bill():
 
     preselect = request.args.get('patient_id', type=int)
     preselect_appointment = request.args.get('appointment_id', type=int)
-    default_item_description = ''
-    default_item_price = ''
+    default_bill_items = []
+    if patient_user and not preselect_appointment and appointments:
+        preselect_appointment = appointments[0].appointment_id
     if patient_user and preselect_appointment:
         selected_appt = next((a for a in appointments if a.appointment_id == preselect_appointment), None)
         if selected_appt:
-            default_item_description = f"Consultation Fee - {selected_appt.doctor_full_name}"
-            default_item_price = f"{float(getattr(selected_appt, 'consultation_fee', 0) or 0):.2f}"
+            default_bill_items = _build_patient_bill_items(selected_appt)
+    if patient_user and preselect_appointment and not default_bill_items:
+        flash('No consultation fee/prescription charges found for this appointment. Please contact billing.', 'warning')
     if patient_user:
         preselect = current_patient.patient_id
 
@@ -256,8 +301,7 @@ def generate_bill():
         preselect=preselect,
         preselect_appointment=preselect_appointment,
         is_patient_user=patient_user,
-        default_item_description=default_item_description,
-        default_item_price=default_item_price,
+        default_bill_items=default_bill_items,
     )
 
 
