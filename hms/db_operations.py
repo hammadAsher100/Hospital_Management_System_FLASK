@@ -318,6 +318,75 @@ def update_patient(patient_id: int, first_name: str, last_name: str, phone: str,
     }))
 
 
+def update_patient_full(patient_id: int, first_name: str, last_name: str, dob: date,
+                        gender: str, phone: str, email: str = None, address: str = None,
+                        emergency_contact: str = None, blood_group: str = None,
+                        allergies: str = None) -> bool:
+    """Update all patient fields including dob and gender (staff-facing edit)"""
+    return bool(execute_procedure("usp_UpdatePatientFull", {
+        "patient_id": patient_id,
+        "first_name": first_name,
+        "last_name": last_name,
+        "dob": dob,
+        "gender": gender,
+        "phone": phone,
+        "email": email,
+        "address": address,
+        "emergency_contact": emergency_contact,
+        "blood_group": blood_group,
+        "allergies": allergies
+    }))
+
+
+def delete_patient(patient_id: int) -> bool:
+    """Delete a patient record"""
+    return bool(execute_procedure("usp_DeletePatient", {"patient_id": patient_id}))
+
+
+def search_patients_count(search: str = None) -> int:
+    """Count patients matching search term"""
+    rows = execute_procedure("usp_SearchPatientsCount", {"search": search})
+    return int(rows[0]["total_count"]) if rows else 0
+
+
+def search_patients(search: str = None, skip: int = 0, take: int = 15) -> List[SimpleNamespace]:
+    """Search patients with pagination (includes full_name and age)"""
+    rows = execute_procedure("usp_SearchPatients", {"search": search, "skip": skip, "take": take})
+    patients = []
+    for row in rows:
+        p = dict_to_object(row)
+        p.dob = p.dob if isinstance(p.dob, date) else datetime.strptime(str(p.dob), "%Y-%m-%d").date()
+        patients.append(p)
+    return patients
+
+
+def update_patient_profile(patient_id: int, user_id: int, email: str = None, phone: str = None,
+                           address: str = None, emergency_contact: str = None,
+                           blood_group: str = None, allergies: str = None) -> bool:
+    """Update patient profile (patient-facing self-edit, also updates Users.email)"""
+    return bool(execute_procedure("usp_UpdatePatientProfile", {
+        "patient_id": patient_id,
+        "user_id": user_id,
+        "email": email,
+        "phone": phone,
+        "address": address,
+        "emergency_contact": emergency_contact,
+        "blood_group": blood_group,
+        "allergies": allergies
+    }))
+
+
+def get_patient_dashboard_stats(patient_id: int) -> Dict[str, int]:
+    """Get patient appointment statistics (total + completed)"""
+    rows = execute_procedure("usp_GetPatientDashboardStats", {"patient_id": patient_id})
+    if rows:
+        return {
+            "total_appointments": int(rows[0].get("total_appointments") or 0),
+            "completed_appointments": int(rows[0].get("completed_appointments") or 0),
+        }
+    return {"total_appointments": 0, "completed_appointments": 0}
+
+
 # ============================================================
 # APPOINTMENT OPERATIONS
 # ============================================================
