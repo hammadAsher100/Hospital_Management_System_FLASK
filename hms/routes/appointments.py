@@ -1,36 +1,81 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
-from flask_login import login_required, current_user
-from hms import db
-from hms.models.appointment import Appointment
-from hms.models.patient import Patient
-from hms.models.doctor import Doctor, DoctorSchedule
-from hms.models.user import User
+from datetime import datetime, timedelta
+from math import ceil
+from types import SimpleNamespace
+
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+
+from hms import db_operations
 from hms.utils import role_required
-from hms.db_queries import is_sql_server, fetch_rows, exec_procedure, rows_to_objects
-from datetime import datetime, date, timedelta
-from sqlalchemy import or_
 
 appointments_bp = Blueprint('appointments', __name__)
 
 
-def _fetch_active_doctors():
-    if is_sql_server():
-        rows = fetch_rows(
-            """
-            SELECT doctor_id, full_name, specialization, consultation_fee
-            FROM dbo.vw_ActiveDoctors
-            ORDER BY full_name
-            """
-        )
-        return rows_to_objects(rows)
+class SimplePagination:
+    def __init__(self, items, page, per_page, total):
+        self.items = items
+        self.page = page
+        self.per_page = per_page
+        self.total = total
+        self.pages = ceil(total / per_page) if per_page else 0
+        self.has_prev = page > 1
+        self.has_next = page < self.pages
+        self.prev_num = page - 1
+        self.next_num = page + 1
 
-    return (
-        Doctor.query.join(User, Doctor.user_id == User.user_id)
-        .filter(User.is_active == True)
-        .filter(or_(Doctor.availability_status == True, Doctor.availability_status.is_(None)))
-        .order_by(Doctor.last_name)
-        .all()
+    def iter_pages(self, left_edge=2, left_current=2, right_current=2, right_edge=2):
+        last = 0
+        for num in range(1, self.pages + 1):
+            if num <= left_edge or (self.page - left_current <= num <= self.page + right_current) or num > self.pages - right_edge:
+                if last + 1 != num:
+                    yield None
+                yield num
+                last = num
+
+
+def _parse_time(value):
+    raw = str(value)
+    return datetime.strptime(raw[:8], '%H:%M:%S').time()
+
+
+def _status_badge(status):
+    return {'scheduled': 'primary', 'completed': 'success', 'cancelled': 'danger'}.get(status, 'secondary')
+
+
+def _map_appointment_row(appt):
+    if hasattr(appt, 'appointment_time'):
+        try:
+            appt.appointment_time = _parse_time(appt.appointment_time)
+        except Exception:
+            pass
+    appt.status_badge = _status_badge(appt.status)
+
+    appt.patient = SimpleNamespace(
+        full_name=getattr(appt, 'patient_full_name', ''),
+        first_name=getattr(appt, 'patient_first_name', ''),
+        last_name=getattr(appt, 'patient_last_name', ''),
+        age=int(getattr(appt, 'patient_age', 0) or 0),
+        gender=getattr(appt, 'patient_gender', ''),
+        phone=getattr(appt, 'patient_phone', ''),
+        blood_group=getattr(appt, 'patient_blood_group', None),
+        allergies=getattr(appt, 'patient_allergies', None),
     )
+    appt.doctor = SimpleNamespace(
+        full_name=getattr(appt, 'doctor_full_name', ''),
+        specialization=getattr(appt, 'doctor_specialization', ''),
+    )
+    return appt
+
+
+def _fetch_active_doctors():
+    return db_operations.list_active_doctors()
+
+
+def _doctor_id_for_current_user():
+    if not current_user.is_doctor():
+        return None
+    doctor = db_operations.get_doctor_by_user_id(current_user.user_id)
+    return doctor.doctor_id if doctor else None
 
 
 @appointments_bp.route('/')
@@ -39,31 +84,38 @@ def list_appointments():
     status_filter = request.args.get('status', '')
     date_filter = request.args.get('date', '')
     page = request.args.get('page', 1, type=int)
+    per_page = 15
+    skip = (page - 1) * per_page
 
-    query = Appointment.query.join(Patient).join(Doctor)
-
-    if current_user.is_doctor() and current_user.doctor_profile:
-        query = query.filter(Appointment.doctor_id == current_user.doctor_profile.doctor_id)
-
-    if status_filter:
-        query = query.filter(Appointment.status == status_filter)
-
+    doctor_id = _doctor_id_for_current_user()
+    filter_date = None
     if date_filter:
         try:
             filter_date = datetime.strptime(date_filter, '%Y-%m-%d').date()
-            query = query.filter(Appointment.appointment_date == filter_date)
         except ValueError:
-            pass
+            filter_date = None
 
-    appointments = query.order_by(
-        Appointment.appointment_date.desc(),
-        Appointment.appointment_time.desc()
-    ).paginate(page=page, per_page=15, error_out=False)
+    total = db_operations.count_appointments(
+        status=status_filter or None,
+        doctor_id=doctor_id,
+        appointment_date=filter_date,
+    )
+    rows = db_operations.list_appointments(
+        status=status_filter or None,
+        doctor_id=doctor_id,
+        appointment_date=filter_date,
+        skip=skip,
+        take=per_page,
+    )
+    items = [_map_appointment_row(a) for a in rows]
+    appointments = SimplePagination(items, page, per_page, total)
 
-    return render_template('appointments/list.html',
-                           appointments=appointments,
-                           status_filter=status_filter,
-                           date_filter=date_filter)
+    return render_template(
+        'appointments/list.html',
+        appointments=appointments,
+        status_filter=status_filter,
+        date_filter=date_filter,
+    )
 
 
 @appointments_bp.route('/book', methods=['GET', 'POST'])
@@ -81,45 +133,52 @@ def book_appointment():
             appt_date = datetime.strptime(appt_date_str, '%Y-%m-%d').date()
             appt_time = datetime.strptime(appt_time_str, '%H:%M').time()
 
-            if Appointment.has_conflict(doctor_id, appt_date, appt_time):
+            if db_operations.check_appointment_conflict(doctor_id, appt_date, appt_time):
                 flash('This time slot is already booked. Please choose another.', 'danger')
             else:
-                appt = Appointment(
+                appt_id = db_operations.create_appointment(
                     patient_id=patient_id,
                     doctor_id=doctor_id,
                     appointment_date=appt_date,
                     appointment_time=appt_time,
                     reason=reason,
-                    status='scheduled'
                 )
-                db.session.add(appt)
-                db.session.commit()
                 flash('Appointment booked successfully!', 'success')
-                return redirect(url_for('appointments.view_appointment', id=appt.appointment_id))
+                return redirect(url_for('appointments.view_appointment', id=appt_id))
         except Exception as e:
-            db.session.rollback()
             flash(f'Error booking appointment: {str(e)}', 'danger')
 
-    patients = Patient.query.order_by(Patient.last_name).all()
+    patients = db_operations.list_patients(skip=0, take=10000)
     doctors = _fetch_active_doctors()
     preselect_patient = request.args.get('patient_id', type=int)
-    return render_template('appointments/book.html', patients=patients, doctors=doctors,
-                           preselect_patient=preselect_patient)
+    return render_template(
+        'appointments/book.html',
+        patients=patients,
+        doctors=doctors,
+        preselect_patient=preselect_patient,
+    )
 
 
 @appointments_bp.route('/<int:id>')
 @login_required
 def view_appointment(id):
-    appt = Appointment.query.get_or_404(id)
-    return render_template('appointments/view.html', appointment=appt)
+    appt = db_operations.get_appointment_by_id(id)
+    if not appt:
+        flash('Appointment not found.', 'danger')
+        return redirect(url_for('appointments.list_appointments'))
+    return render_template('appointments/view.html', appointment=_map_appointment_row(appt))
 
 
 @appointments_bp.route('/<int:id>/cancel', methods=['POST'])
 @login_required
 def cancel_appointment(id):
-    appt = Appointment.query.get_or_404(id)
+    appt = db_operations.get_appointment_by_id(id)
+    if not appt:
+        flash('Appointment not found.', 'danger')
+        return redirect(url_for('appointments.list_appointments'))
+
     if appt.status == 'scheduled':
-        appt.cancel()
+        db_operations.update_appointment_status(id, 'cancelled')
         flash('Appointment cancelled.', 'warning')
     else:
         flash('Only scheduled appointments can be cancelled.', 'danger')
@@ -130,11 +189,14 @@ def cancel_appointment(id):
 @login_required
 @role_required('admin', 'doctor')
 def complete_appointment(id):
-    appt = Appointment.query.get_or_404(id)
+    appt = db_operations.get_appointment_by_id(id)
+    if not appt:
+        flash('Appointment not found.', 'danger')
+        return redirect(url_for('appointments.list_appointments'))
+
     notes = request.form.get('notes', '')
     if appt.status == 'scheduled':
-        appt.notes = notes
-        appt.complete()
+        db_operations.update_appointment_status(id, 'completed', notes=notes)
         flash('Appointment marked as completed.', 'success')
     else:
         flash('Only scheduled appointments can be completed.', 'danger')
@@ -145,25 +207,26 @@ def complete_appointment(id):
 @login_required
 @role_required('admin', 'doctor', 'nurse')
 def reschedule_appointment(id):
-    appt = Appointment.query.get_or_404(id)
+    appt = db_operations.get_appointment_by_id(id)
+    if not appt:
+        flash('Appointment not found.', 'danger')
+        return redirect(url_for('appointments.list_appointments'))
+
     if request.method == 'POST':
         try:
             new_date = datetime.strptime(request.form['appointment_date'], '%Y-%m-%d').date()
             new_time = datetime.strptime(request.form['appointment_time'], '%H:%M').time()
 
-            if Appointment.has_conflict(appt.doctor_id, new_date, new_time, exclude_id=id):
+            if db_operations.check_appointment_conflict(appt.doctor_id, new_date, new_time, exclude_id=id):
                 flash('That time slot is already taken.', 'danger')
             else:
-                appt.appointment_date = new_date
-                appt.appointment_time = new_time
-                db.session.commit()
+                db_operations.reschedule_appointment(id, new_date, new_time)
                 flash('Appointment rescheduled.', 'success')
                 return redirect(url_for('appointments.view_appointment', id=id))
         except Exception as e:
-            db.session.rollback()
             flash(f'Error rescheduling: {str(e)}', 'danger')
 
-    return render_template('appointments/reschedule.html', appointment=appt)
+    return render_template('appointments/reschedule.html', appointment=_map_appointment_row(appt))
 
 
 @appointments_bp.route('/api/available-slots')
@@ -179,30 +242,12 @@ def available_slots():
         appt_date = datetime.strptime(date_str, '%Y-%m-%d').date()
         day_of_week = appt_date.weekday()
 
-        schedule = DoctorSchedule.query.filter_by(
-            doctor_id=doctor_id, day_of_week=day_of_week
-        ).first()
-
+        schedule = db_operations.get_doctor_schedule_by_day(doctor_id, day_of_week)
         if not schedule:
             return jsonify({'slots': [], 'message': 'Doctor not available on this day'})
 
-        if is_sql_server():
-            rows = exec_procedure(
-                "dbo.usp_GetDoctorBookedSlots",
-                {"doctor_id": doctor_id, "appointment_date": appt_date},
-            )
-            booked_times = {str(r["appointment_time"])[:5] for r in rows}
-        else:
-            booked_times = {
-                str(a.appointment_time)[:5]
-                for a in Appointment.query.filter_by(
-                    doctor_id=doctor_id,
-                    appointment_date=appt_date,
-                    status='scheduled'
-                ).all()
-            }
+        booked_times = set(db_operations.get_doctor_booked_slots(doctor_id, appt_date))
 
-        # Generate 30-min slots
         slots = []
         current = datetime.combine(appt_date, schedule.start_time)
         end = datetime.combine(appt_date, schedule.end_time)

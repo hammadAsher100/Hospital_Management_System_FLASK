@@ -212,17 +212,25 @@
                 <div class="card-body">
                     <div class="stat-row mb-3">
                         <span class="stat-label">Completion Rate</span>
-                        <span class="stat-value">
-                            {% if total_appointments > 0 %}
-                                {{ ((completed_appointments / total_appointments) * 100)|int }}%
-                            {% else %}
-                                0%
-                            {% endif %}
-                        </span>
+                        <span class="stat-value">{{ completion_rate_percent }}%</span>
                     </div>
                     <div class="progress mb-3">
-                        <div class="progress-bar" role="progressbar" style="width: {% if total_appointments > 0 %}{{ ((completed_appointments / total_appointments) * 100)|int }}{% else %}0{% endif %}%"></div>
+                        <div
+                            class="progress-bar"
+                            role="progressbar"
+                            aria-valuenow="{{ completion_rate_percent }}"
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            data-width-pct="{{ completion_rate_percent }}"
+                        ></div>
                     </div>
+                    <script>
+                        (function () {
+                            document.querySelectorAll('.progress-bar[data-width-pct]').forEach(function (el) {
+                                el.style.width = el.getAttribute('data-width-pct') + '%';
+                            });
+                        })();
+                    </script>
                     
                     <div class="stat-row">
                         <span class="stat-label">Avg Response Time</span>

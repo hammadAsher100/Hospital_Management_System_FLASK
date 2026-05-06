@@ -1,29 +1,61 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
-from flask_login import login_required, current_user
-from hms import db
-from hms.models.doctor import Doctor, Nurse, DoctorSchedule
-from hms.models.user import User
-from hms.models.appointment import Appointment
-from hms.utils import role_required, admin_required
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from sqlalchemy.exc import IntegrityError
+from types import SimpleNamespace
+
+from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+
+from hms import db_operations
+from hms.models.user import User
+from hms.utils import admin_required, role_required
 
 staff_bp = Blueprint('staff', __name__)
+
+
+def _map_doctor(d):
+    doctor = SimpleNamespace(**d.__dict__)
+    doctor.full_name = getattr(d, 'full_name', f"Dr. {d.first_name} {d.last_name}")
+    doctor.consultation_fee = float(getattr(d, 'consultation_fee', 0) or 0)
+    total = int(getattr(d, 'total_appointments', 0) or 0)
+    doctor.appointments = SimpleNamespace(count=lambda t=total: t)
+    return doctor
+
+
+def _map_nurse(n):
+    nurse = SimpleNamespace(**n.__dict__)
+    nurse.full_name = getattr(n, 'full_name', f"{n.first_name} {n.last_name}")
+    active = int(getattr(n, 'active_admissions_count', 0) or 0)
+    nurse.admissions = SimpleNamespace(filter_by=lambda **kwargs: SimpleNamespace(count=lambda a=active: a))
+    return nurse
+
+
+def _map_appt(a):
+    appt = SimpleNamespace(**a.__dict__)
+    appt.patient = SimpleNamespace(
+        patient_id=appt.patient_id,
+        full_name=getattr(appt, 'patient_full_name', ''),
+        phone=getattr(appt, 'patient_phone', ''),
+    )
+    appt.doctor = SimpleNamespace(
+        first_name=getattr(appt, 'doctor_first_name', ''),
+        last_name=getattr(appt, 'doctor_last_name', ''),
+        full_name=getattr(appt, 'doctor_full_name', ''),
+    )
+    return appt
 
 
 @staff_bp.route('/')
 @login_required
 def list_staff():
-    doctors = Doctor.query.order_by(Doctor.last_name).all()
-    nurses = Nurse.query.order_by(Nurse.last_name).all()
+    doctors = [_map_doctor(d) for d in db_operations.list_doctors()]
+    nurses = [_map_nurse(n) for n in db_operations.list_nurses()]
     return render_template('staff/list.html', doctors=doctors, nurses=nurses)
 
 
 @staff_bp.route('/doctors')
 @login_required
 def list_doctors():
-    doctors = Doctor.query.order_by(Doctor.specialization, Doctor.last_name).all()
+    doctors = [_map_doctor(d) for d in db_operations.list_doctors()]
     return render_template('staff/doctors.html', doctors=doctors)
 
 
@@ -39,77 +71,39 @@ def add_doctor():
             email = request.form['email'].strip()
             specialization = request.form['specialization'].strip()
             phone = (request.form.get('phone') or '').strip() or None
-            raw_fee = (request.form.get('consultation_fee') or '0').strip()
-            consultation_fee = Decimal(raw_fee or '0')
+            consultation_fee = Decimal((request.form.get('consultation_fee') or '0').strip() or '0')
 
             if not username or not email or not first_name or not last_name or not specialization:
                 flash('Please fill in all required fields.', 'danger')
                 return render_template('staff/doctor_form.html', doctor=None)
-            if len(username) > 50:
-                flash('Username is too long (max 50 characters).', 'danger')
-                return render_template('staff/doctor_form.html', doctor=None)
-            if len(email) > 100:
-                flash('Email is too long (max 100 characters).', 'danger')
-                return render_template('staff/doctor_form.html', doctor=None)
-            if len(first_name) > 50 or len(last_name) > 50:
-                flash('First/Last name is too long (max 50 characters each).', 'danger')
-                return render_template('staff/doctor_form.html', doctor=None)
-            if len(specialization) > 100:
-                flash('Specialization is too long (max 100 characters).', 'danger')
-                return render_template('staff/doctor_form.html', doctor=None)
 
-            user = User(
-                username=username,
-                email=email,
-                full_name=f"{first_name} {last_name}",
-                role='doctor'
-            )
+            user = User(user_id=0, username=username, email=email, full_name=f"{first_name} {last_name}", role='doctor', password_hash='')
             user.set_password(request.form['password'])
-            db.session.add(user)
-            db.session.flush()
-
-            doctor = Doctor(
-                user_id=user.user_id,
+            doctor_id = db_operations.create_doctor_with_user(
+                username=username,
+                password_hash=user.password_hash,
+                email=email,
                 first_name=first_name,
                 last_name=last_name,
                 specialization=specialization,
                 phone=phone,
-                email=email,
-                consultation_fee=consultation_fee,
-                availability_status=True
+                consultation_fee=float(consultation_fee),
             )
-            db.session.add(doctor)
-            db.session.commit()
-            flash(f'Dr. {doctor.full_name} added successfully.', 'success')
+            if not doctor_id:
+                flash('Failed to add doctor.', 'danger')
+                return render_template('staff/doctor_form.html', doctor=None)
+            flash(f'Dr. {first_name} {last_name} added successfully.', 'success')
             return redirect(url_for('staff.list_doctors'))
         except InvalidOperation:
-            db.session.rollback()
             flash('Invalid consultation fee. Please enter a valid number.', 'danger')
-        except IntegrityError as e:
-            db.session.rollback()
-            db_error = str(getattr(e, 'orig', e))
-            db_error_lower = db_error.lower()
-            is_unique_violation = (
-                'unique key' in db_error_lower or
-                'duplicate key' in db_error_lower or
-                'uq__users__username' in db_error_lower or
-                'uq__users__email' in db_error_lower
-            )
-            if is_unique_violation and 'username' in db_error_lower:
-                flash(
-                    f'Username "{username}" already exists in users. Please use a different username.',
-                    'danger'
-                )
-            elif is_unique_violation and 'email' in db_error_lower:
-                flash(
-                    f'Email "{email}" already exists in users. Please use a different email.',
-                    'danger'
-                )
-            else:
-                flash(f'Doctor could not be added due to a database constraint: {db_error}', 'danger')
         except Exception as e:
-            db.session.rollback()
-            flash(f'Error adding doctor: {str(e)}', 'danger')
+            msg = str(e).lower()
+            if 'username' in msg:
+                flash('Username already exists.', 'danger')
+            elif 'email' in msg:
+                flash('Email already exists.', 'danger')
+            else:
+                flash(f'Error adding doctor: {str(e)}', 'danger')
 
     return render_template('staff/doctor_form.html', doctor=None)
 
@@ -118,12 +112,15 @@ def add_doctor():
 @login_required
 @role_required('admin', 'doctor')
 def manage_schedule(id):
-    doctor = Doctor.query.get_or_404(id)
+    doctor_raw = next((d for d in db_operations.list_doctors() if int(d.doctor_id) == id), None)
+    if not doctor_raw:
+        flash('Doctor not found.', 'danger')
+        return redirect(url_for('staff.list_doctors'))
+    doctor = _map_doctor(doctor_raw)
 
     if request.method == 'POST':
         try:
-            # Remove old schedules and rebuild
-            DoctorSchedule.query.filter_by(doctor_id=id).delete()
+            db_operations.clear_doctor_schedules(id)
             days = request.form.getlist('day_of_week')
             starts = request.form.getlist('start_time')
             ends = request.form.getlist('end_time')
@@ -131,29 +128,25 @@ def manage_schedule(id):
 
             for day, start, end, mx in zip(days, starts, ends, maxes):
                 if start and end:
-                    schedule = DoctorSchedule(
+                    db_operations.add_doctor_schedule(
                         doctor_id=id,
                         day_of_week=int(day),
                         start_time=datetime.strptime(start, '%H:%M').time(),
                         end_time=datetime.strptime(end, '%H:%M').time(),
-                        max_appointments=int(mx) if mx else 10
+                        max_appointments=int(mx) if mx else 10,
                     )
-                    db.session.add(schedule)
-
-            db.session.commit()
             flash('Schedule updated successfully.', 'success')
         except Exception as e:
-            db.session.rollback()
             flash(f'Error updating schedule: {str(e)}', 'danger')
 
-    schedules = {s.day_of_week: s for s in doctor.schedules.all()}
+    schedules = {int(s.day_of_week): s for s in db_operations.list_doctor_schedules(id)}
     return render_template('staff/manage_schedule.html', doctor=doctor, schedules=schedules)
 
 
 @staff_bp.route('/nurses')
 @login_required
 def list_nurses():
-    nurses = Nurse.query.order_by(Nurse.last_name).all()
+    nurses = [_map_nurse(n) for n in db_operations.list_nurses()]
     return render_template('staff/nurses.html', nurses=nurses)
 
 
@@ -163,30 +156,28 @@ def list_nurses():
 def add_nurse():
     if request.method == 'POST':
         try:
-            user = User(
-                username=request.form['username'],
-                email=request.form['email'],
-                full_name=f"{request.form['first_name']} {request.form['last_name']}",
-                role='nurse'
-            )
-            user.set_password(request.form['password'])
-            db.session.add(user)
-            db.session.flush()
+            first_name = request.form['first_name'].strip()
+            last_name = request.form['last_name'].strip()
+            username = request.form['username'].strip()
+            email = request.form['email'].strip()
 
-            nurse = Nurse(
-                user_id=user.user_id,
-                first_name=request.form['first_name'],
-                last_name=request.form['last_name'],
+            user = User(user_id=0, username=username, email=email, full_name=f"{first_name} {last_name}", role='nurse', password_hash='')
+            user.set_password(request.form['password'])
+            nurse_id = db_operations.create_nurse_with_user(
+                username=username,
+                password_hash=user.password_hash,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
                 phone=request.form.get('phone'),
-                email=request.form['email'],
-                assigned_ward=request.form.get('assigned_ward')
+                assigned_ward=request.form.get('assigned_ward'),
             )
-            db.session.add(nurse)
-            db.session.commit()
-            flash(f'{nurse.full_name} added successfully.', 'success')
+            if not nurse_id:
+                flash('Failed to add nurse.', 'danger')
+                return render_template('staff/nurse_form.html')
+            flash(f'{first_name} {last_name} added successfully.', 'success')
             return redirect(url_for('staff.list_nurses'))
         except Exception as e:
-            db.session.rollback()
             flash(f'Error adding nurse: {str(e)}', 'danger')
 
     return render_template('staff/nurse_form.html')
@@ -196,7 +187,7 @@ def add_nurse():
 @login_required
 @admin_required
 def list_users():
-    users = User.query.order_by(User.role, User.full_name).all()
+    users = db_operations.list_users()
     return render_template('staff/users.html', users=users)
 
 
@@ -204,58 +195,39 @@ def list_users():
 @login_required
 @admin_required
 def toggle_user(id):
-    user = User.query.get_or_404(id)
-    user.is_active = not user.is_active
-    db.session.commit()
+    user = db_operations.toggle_user_active(id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('staff.list_users'))
     status = 'activated' if user.is_active else 'deactivated'
     flash(f'User {user.username} {status}.', 'success')
     return redirect(url_for('staff.list_users'))
 
 
-# ============================================================================
-# DOCTOR DASHBOARD ROUTES
-# ============================================================================
-
 @staff_bp.route('/doctor-dashboard')
 @login_required
 def doctor_dashboard():
-    """Doctor dashboard showing today's appointments and stats"""
     if not current_user.is_doctor():
         flash('You do not have access to this page.', 'danger')
         return redirect(url_for('auth.login'))
-    
-    doctor = Doctor.query.filter_by(user_id=current_user.user_id).first()
+
+    doctor = db_operations.get_doctor_by_user_id(current_user.user_id)
     if not doctor:
         flash('Doctor profile not found.', 'danger')
         return redirect(url_for('auth.logout'))
-    
-    # Get today's appointments
-    today_appointments = Appointment.query.filter(
-        Appointment.doctor_id == doctor.doctor_id,
-        Appointment.appointment_date == date.today(),
-        Appointment.status == 'scheduled'
-    ).order_by(Appointment.appointment_time).all()
-    
-    # Get upcoming appointments (next 7 days)
-    week_later = date.today() + timedelta(days=7)
-    upcoming_appointments = Appointment.query.filter(
-        Appointment.doctor_id == doctor.doctor_id,
-        Appointment.appointment_date > date.today(),
-        Appointment.appointment_date <= week_later,
-        Appointment.status == 'scheduled'
-    ).order_by(Appointment.appointment_date, Appointment.appointment_time).all()
-    
-    # Get stats
-    total_appointments = Appointment.query.filter_by(doctor_id=doctor.doctor_id).count()
-    completed_appointments = Appointment.query.filter_by(
-        doctor_id=doctor.doctor_id,
-        status='completed'
-    ).count()
-    pending_appointments = Appointment.query.filter_by(
-        doctor_id=doctor.doctor_id,
-        status='scheduled'
-    ).count()
-    
+    doctor = _map_doctor(doctor)
+
+    today = date.today()
+    week_later = today + timedelta(days=7)
+    today_appointments = [_map_appt(a) for a in db_operations.list_appointments(status='scheduled', doctor_id=doctor.doctor_id, appointment_date=today, skip=0, take=500)]
+    upcoming_all = db_operations.list_appointments(status='scheduled', doctor_id=doctor.doctor_id, skip=0, take=1000)
+    upcoming_appointments = [_map_appt(a) for a in upcoming_all if a.appointment_date > today and a.appointment_date <= week_later]
+
+    total_appointments = db_operations.count_appointments(doctor_id=doctor.doctor_id)
+    completed_appointments = db_operations.count_appointments(doctor_id=doctor.doctor_id, status='completed')
+    pending_appointments = db_operations.count_appointments(doctor_id=doctor.doctor_id, status='scheduled')
+    completion_rate_percent = int((completed_appointments / total_appointments) * 100) if total_appointments > 0 else 0
+
     return render_template(
         'staff/doctor_dashboard.html',
         doctor=doctor,
@@ -263,64 +235,46 @@ def doctor_dashboard():
         upcoming_appointments=upcoming_appointments,
         total_appointments=total_appointments,
         completed_appointments=completed_appointments,
-        pending_appointments=pending_appointments
+        pending_appointments=pending_appointments,
+        completion_rate_percent=completion_rate_percent,
     )
 
 
 @staff_bp.route('/doctor/appointments')
 @login_required
 def doctor_appointments():
-    """Legacy endpoint retained for compatibility; use shared appointments page."""
     return redirect(url_for('appointments.list_appointments'))
 
-
-# ============================================================================
-# NURSE DASHBOARD ROUTES
-# ============================================================================
 
 @staff_bp.route('/nurse-dashboard')
 @login_required
 def nurse_dashboard():
-    """Nurse dashboard showing ward information and tasks"""
     if not current_user.is_nurse():
         flash('You do not have access to this page.', 'danger')
         return redirect(url_for('auth.login'))
-    
-    nurse = Nurse.query.filter_by(user_id=current_user.user_id).first()
+
+    nurse = db_operations.get_nurse_by_user_id(current_user.user_id)
     if not nurse:
         flash('Nurse profile not found.', 'danger')
         return redirect(url_for('auth.logout'))
-    
-    # Get today's appointments involving patients assigned to this nurse's ward
-    today_appointments = Appointment.query.filter(
-        Appointment.appointment_date == date.today(),
-        Appointment.status == 'scheduled'
-    ).order_by(Appointment.appointment_time).all()
-    
-    # Get stats
-    total_patients = Appointment.query.filter(
-        Appointment.appointment_date >= date.today() - timedelta(days=30)
-    ).distinct(Appointment.patient_id).count()
-    
-    return render_template(
-        'staff/nurse_dashboard.html',
-        nurse=nurse,
-        today_appointments=today_appointments,
-        total_patients=total_patients
-    )
+    nurse = _map_nurse(nurse)
+
+    today_appointments = [_map_appt(a) for a in db_operations.list_appointments(status='scheduled', appointment_date=date.today(), skip=0, take=500)]
+    total_patients = db_operations.count_recent_unique_patients(days=30)
+
+    return render_template('staff/nurse_dashboard.html', nurse=nurse, today_appointments=today_appointments, total_patients=total_patients)
 
 
 @staff_bp.route('/nurse/schedule')
 @login_required
 def nurse_schedule():
-    """View nurse schedule"""
     if not current_user.is_nurse():
         flash('You do not have access to this page.', 'danger')
         return redirect(url_for('auth.login'))
-    
-    nurse = Nurse.query.filter_by(user_id=current_user.user_id).first()
+
+    nurse = db_operations.get_nurse_by_user_id(current_user.user_id)
     if not nurse:
         flash('Nurse profile not found.', 'danger')
         return redirect(url_for('auth.logout'))
-    
-    return render_template('staff/nurse_schedule.html', nurse=nurse)
+
+    return render_template('staff/nurse_schedule.html', nurse=_map_nurse(nurse))

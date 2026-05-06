@@ -16,65 +16,57 @@ def _is_vercel_runtime():
     )
 
 
-def _sqlalchemy_database_uri():
-    """Full URI wins (needed for Azure SQL: encrypt, driver 18, etc.)."""
+def get_db_connection_params():
+    """Get database connection parameters as a dictionary."""
     explicit = (
         os.environ.get('SQLALCHEMY_DATABASE_URI')
         or os.environ.get('DATABASE_URL')
         or ''
     ).strip()
 
-    # Vercel/Linux: Flask-SQLAlchemy 3 creates engines inside init_app(), so mssql+pyodbc
-    # imports pyodbc immediately. Default Vercel runtimes usually lack MS ODBC → import crash.
+    # Vercel/Linux fallback
     if _is_vercel_runtime():
         if explicit:
             lower = explicit.lower()
             if lower.startswith('sqlite') or 'postgresql' in lower or lower.startswith(
                 'postgres'
             ):
-                return explicit
+                return {'uri': explicit, 'type': 'sqlite' if 'sqlite' in lower else 'postgres'}
             if 'mssql' in lower and os.environ.get('VERCEL_USE_MSSQL'):
-                return explicit
-            if 'mssql' in lower and not os.environ.get('VERCEL_USE_MSSQL'):
-                print(
-                    '[config] Vercel: ignoring MSSQL URI (set VERCEL_USE_MSSQL=1 if ODBC works). '
-                    'Using SQLite fallback so the app can boot.'
-                )
-        elif not explicit:
-            print(
-                '[config] Vercel: no DATABASE_URL / SQLALCHEMY_DATABASE_URI. '
-                'Using /tmp SQLite (ephemeral — add a PostgreSQL DATABASE_URL for persistence).'
-            )
-        return 'sqlite:////tmp/hms_vercel.sqlite3'
+                return {'uri': explicit, 'type': 'mssql'}
+        return {'uri': 'sqlite:////tmp/hms_vercel.sqlite3', 'type': 'sqlite'}
 
     if explicit:
-        return explicit
+        return {'uri': explicit, 'type': 'mssql' if 'mssql' in explicit.lower() else 'unknown'}
 
     server = os.environ.get('DB_SERVER', r'localhost\SQLEXPRESS')
-    db = os.environ.get('DB_NAME', 'HMS_DB')
+    db_name = os.environ.get('DB_NAME', 'HMS_DB')
     username = os.environ.get('DB_USERNAME', '')
     password = os.environ.get('DB_PASSWORD', '')
-    # Spaces → + in SQLAlchemy URLs; override via env on Linux/production (e.g. Driver 18 for Azure).
     driver = os.environ.get(
         'MSSQL_ODBC_DRIVER',
         'ODBC Driver 17 for SQL Server',
     )
-    driver_q = quote_plus(driver)
 
-    if username and password:
-        return (
-            f'mssql+pyodbc://{quote_plus(username)}:{quote_plus(password)}@{server}/{db}'
-            f'?driver={driver_q}'
-        )
-    return (
-        f'mssql+pyodbc://@{server}/{db}'
-        f'?driver={driver_q}&trusted_connection=yes'
-    )
+    return {
+        'driver': driver,
+        'server': server,
+        'database': db_name,
+        'username': username if username else None,
+        'password': password if password else None,
+        'uri': f'mssql+pyodbc://{server}/{db_name}?driver={quote_plus(driver)}',
+        'type': 'mssql'
+    }
+
+
+def _sqlalchemy_database_uri():
+    """Full URI wins (needed for Azure SQL: encrypt, driver 18, etc.)."""
+    params = get_db_connection_params()
+    return params.get('uri', '')
 
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     DB_SERVER = os.environ.get('DB_SERVER', r'localhost\SQLEXPRESS')
     DB_NAME = os.environ.get('DB_NAME', 'HMS_DB')

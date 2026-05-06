@@ -156,9 +156,6 @@ PRINT '  Doctor 3: dr_omar    / DrOmar@123';
 PRINT '  Patient 1: pt_mkhan  / PtKhan@123';
 PRINT '  Patient 2: pt_ayesha / PtAyesha@123';
 PRINT '  Patient 3: pt_zainab / PtZainab@123';
-PRINT '  Nurse 1:  nurse_sara / NurseSara@123';
-PRINT '  Billing:  billing1   / Billing@123';
-PRINT '';
 PRINT 'IMPORTANT: Rotate these credentials in production.';
 PRINT 'To regenerate password hashes, run: python generate_hashes.py';
 GO

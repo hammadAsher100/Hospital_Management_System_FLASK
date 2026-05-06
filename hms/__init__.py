@@ -1,11 +1,42 @@
 import os
-
+import pyodbc
 from flask import Flask, render_template
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
-from config import _sqlalchemy_database_uri, config
+from config import get_db_connection_params, config
 
-db = SQLAlchemy()
+
+class Database:
+    """Simple database wrapper using pyodbc instead of SQLAlchemy."""
+    
+    def __init__(self):
+        self.connection_params = None
+    
+    def init_app(self, app):
+        """Initialize database with app configuration."""
+        self.connection_params = app.config.get('DB_CONNECTION_PARAMS', {})
+    
+    def get_connection(self):
+        """Get a new database connection."""
+        if not self.connection_params:
+            raise RuntimeError("Database not initialized. Call init_app first.")
+        
+        driver = self.connection_params['driver']
+        server = self.connection_params['server']
+        database = self.connection_params['database']
+        username = self.connection_params.get('username')
+        password = self.connection_params.get('password')
+        
+        conn_str = f"DRIVER={{{driver}}};SERVER={server};DATABASE={database};"
+        
+        if username and password:
+            conn_str += f"UID={username};PWD={password};"
+        else:
+            conn_str += "Trusted_Connection=yes;"
+        
+        return pyodbc.connect(conn_str)
+
+
+db = Database()
 login_manager = LoginManager()
 login_manager.login_view = 'auth.login'
 login_manager.login_message = 'Please log in to access this page.'
@@ -14,12 +45,10 @@ login_manager.login_message_category = 'warning'
 
 def _ensure_tables_for_sqlite(app):
     """Serverless SQLite (e.g. Vercel fallback) has no schema until tables exist."""
-    uri = (app.config.get('SQLALCHEMY_DATABASE_URI') or '').strip().lower()
+    uri = (app.config.get('DATABASE_URI') or '').strip().lower()
     if not uri.startswith('sqlite'):
         return
-    with app.app_context():
-        db.create_all()
-        db.session.commit()
+    print('[HMS] Using SQLite - ensure schema.sql has been run')
 
 
 def create_app(config_name=None):
@@ -30,26 +59,28 @@ def create_app(config_name=None):
             config_name = 'default'
     app = Flask(__name__)
     app.config.from_object(config[config_name])
-    # Re-resolve DB URI at app init (not only at config import) so Vercel env is visible
-    # and we never keep a stale mssql+pyodbc URL from an earlier import context.
-    app.config['SQLALCHEMY_DATABASE_URI'] = _sqlalchemy_database_uri()
+    
+    # Get database connection parameters
+    db_params = get_db_connection_params()
+    app.config['DB_CONNECTION_PARAMS'] = db_params
+    app.config['DATABASE_URI'] = db_params.get('uri', '')
 
     db.init_app(app)
     login_manager.init_app(app)
 
+    # Import database operations module
+    from hms import db_operations
     from hms.models.user import User
-    # Import all models so SQLAlchemy can discover them
-    from hms.models import patient, doctor, appointment, billing, pharmacy, admission  # noqa
 
     _ensure_tables_for_sqlite(app)
     if os.environ.get('VERCEL'):
-        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI') or ''
+        db_uri = app.config.get('DATABASE_URI') or ''
         preview = db_uri.split('@')[-1] if '@' in db_uri else db_uri
         print(f'[HMS] Effective database (host/path): {preview}')
 
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        return User.get_by_id(int(user_id))
 
     # Context processor — makes 'now' and 'today' available in every template
     from datetime import datetime, date as date_type
@@ -59,9 +90,8 @@ def create_app(config_name=None):
         from hms.models.pharmacy import Medicine
         low_stock_count = 0
         try:
-            low_stock_count = Medicine.query.filter(
-                Medicine.stock_quantity <= Medicine.reorder_level
-            ).count()
+            low_stock_meds = Medicine.get_low_stock()
+            low_stock_count = len(low_stock_meds)
         except Exception:
             pass
         return {
@@ -117,11 +147,12 @@ def create_app(config_name=None):
     def forbidden(e):
         return render_template('errors/403.html'), 403
 
-    # Optional startup DB check (skipped on Vercel: pyodbc/dialect init can fail hard in serverless)
+    # Optional startup DB check
     if not os.environ.get('VERCEL'):
         with app.app_context():
             try:
-                db.engine.connect()
+                conn = db.get_connection()
+                conn.close()
                 print("[OK] Database connection successful.")
             except Exception as e:
                 print(f"[WARNING] Database connection failed: {e}")

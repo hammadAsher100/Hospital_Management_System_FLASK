@@ -1,50 +1,102 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
-from flask_login import login_required, current_user
-from hms import db
-from hms.models.pharmacy import Medicine, Prescription, PrescriptionItem
-from hms.models.patient import Patient
-from hms.models.doctor import Doctor
-from hms.models.appointment import Appointment
-from hms.utils import role_required
 from datetime import datetime
+from math import ceil
+from types import SimpleNamespace
+
+from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required
+
+from hms import db_operations
+from hms.utils import role_required
 
 pharmacy_bp = Blueprint('pharmacy', __name__)
+
+
+class SimplePagination:
+    def __init__(self, items, page, per_page, total):
+        self.items = items
+        self.page = page
+        self.per_page = per_page
+        self.total = total
+        self.pages = ceil(total / per_page) if per_page else 0
+        self.has_prev = page > 1
+        self.has_next = page < self.pages
+        self.prev_num = page - 1
+        self.next_num = page + 1
+
+    def iter_pages(self, left_edge=2, left_current=2, right_current=2, right_edge=2):
+        last = 0
+        for num in range(1, self.pages + 1):
+            if num <= left_edge or (self.page - left_current <= num <= self.page + right_current) or num > self.pages - right_edge:
+                if last + 1 != num:
+                    yield None
+                yield num
+                last = num
+
+
+def _map_medicine(m):
+    med = SimpleNamespace(**m.__dict__)
+    med.unit_price = float(med.unit_price or 0)
+    med.stock_quantity = int(med.stock_quantity or 0)
+    med.reorder_level = int(med.reorder_level or 0)
+    med.is_low_stock = lambda x=med: x.stock_quantity <= x.reorder_level
+    if getattr(med, 'expiry_date', None):
+        try:
+            med.expiry_date = datetime.strptime(str(med.expiry_date)[:10], '%Y-%m-%d').date()
+        except Exception:
+            pass
+    return med
+
+
+def _map_prescription(rx):
+    p = SimpleNamespace(**rx.__dict__)
+    p.prescribed_date = datetime.strptime(str(p.prescribed_date)[:19], '%Y-%m-%d %H:%M:%S')
+    p.patient = SimpleNamespace(full_name=getattr(p, 'patient_full_name', ''))
+    p.doctor = SimpleNamespace(full_name=getattr(p, 'doctor_full_name', ''))
+    items = db_operations.get_prescription_items(p.prescription_id)
+    p.items = [
+        SimpleNamespace(
+            medicine=SimpleNamespace(name=getattr(i, 'medicine_name', '')),
+            quantity=int(getattr(i, 'quantity', 1) or 1),
+            medicine_id=i.medicine_id,
+            dosage=getattr(i, 'dosage', None),
+            frequency=getattr(i, 'frequency', None),
+            duration=getattr(i, 'duration', None),
+        )
+        for i in items
+    ]
+    return p
 
 
 @pharmacy_bp.route('/')
 @login_required
 def dashboard():
-    low_stock = Medicine.query.filter(
-        Medicine.stock_quantity <= Medicine.reorder_level
-    ).order_by(Medicine.stock_quantity).all()
-    total_medicines = Medicine.query.count()
-    total_prescriptions = Prescription.query.count()
-    pending_dispense = Prescription.query.filter_by(is_dispensed=False).count()
-    return render_template('pharmacy/dashboard.html',
-                           low_stock=low_stock,
-                           total_medicines=total_medicines,
-                           total_prescriptions=total_prescriptions,
-                           pending_dispense=pending_dispense)
+    low_stock = [_map_medicine(m) for m in db_operations.get_low_stock_medicines()]
+    total_medicines = db_operations.count_medicines()
+    total_prescriptions = db_operations.count_prescriptions()
+    pending_dispense = db_operations.count_prescriptions(is_dispensed=False)
+    return render_template(
+        'pharmacy/dashboard.html',
+        low_stock=low_stock,
+        total_medicines=total_medicines,
+        total_prescriptions=total_prescriptions,
+        pending_dispense=pending_dispense,
+    )
 
 
 @pharmacy_bp.route('/medicines')
 @login_required
 def list_medicines():
-    search = request.args.get('search', '')
-    category = request.args.get('category', '')
+    search = request.args.get('search', '').strip()
+    category = request.args.get('category', '').strip()
     page = request.args.get('page', 1, type=int)
+    per_page = 20
+    skip = (page - 1) * per_page
 
-    query = Medicine.query
-    if search:
-        query = query.filter(Medicine.name.ilike(f'%{search}%'))
-    if category:
-        query = query.filter(Medicine.category == category)
-
-    medicines = query.order_by(Medicine.name).paginate(page=page, per_page=20, error_out=False)
-    categories = db.session.query(Medicine.category).distinct().all()
-    return render_template('pharmacy/medicines.html', medicines=medicines,
-                           categories=[c[0] for c in categories],
-                           search=search, category=category)
+    total = db_operations.count_medicines(search=search or None, category=category or None)
+    meds = db_operations.list_medicines(search=search or None, category=category or None, skip=skip, take=per_page)
+    medicines = SimplePagination([_map_medicine(m) for m in meds], page, per_page, total)
+    categories = db_operations.list_medicine_categories()
+    return render_template('pharmacy/medicines.html', medicines=medicines, categories=categories, search=search, category=category)
 
 
 @pharmacy_bp.route('/medicines/add', methods=['GET', 'POST'])
@@ -53,22 +105,19 @@ def list_medicines():
 def add_medicine():
     if request.method == 'POST':
         try:
-            med = Medicine(
+            med_id = db_operations.create_medicine(
                 name=request.form['name'],
                 category=request.form.get('category'),
                 manufacturer=request.form.get('manufacturer'),
                 unit_price=float(request.form['unit_price']),
                 stock_quantity=int(request.form.get('stock_quantity', 0)),
                 reorder_level=int(request.form.get('reorder_level', 10)),
-                expiry_date=datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date()
-                    if request.form.get('expiry_date') else None
+                expiry_date=datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date() if request.form.get('expiry_date') else None,
             )
-            db.session.add(med)
-            db.session.commit()
+            med = db_operations.get_medicine_by_id(med_id)
             flash(f'{med.name} added to inventory.', 'success')
             return redirect(url_for('pharmacy.list_medicines'))
         except Exception as e:
-            db.session.rollback()
             flash(f'Error adding medicine: {str(e)}', 'danger')
 
     return render_template('pharmacy/medicine_form.html', medicine=None)
@@ -78,22 +127,26 @@ def add_medicine():
 @login_required
 @role_required('admin', 'billing')
 def edit_medicine(id):
-    med = Medicine.query.get_or_404(id)
+    med = db_operations.get_medicine_by_id(id)
+    if not med:
+        flash('Medicine not found.', 'danger')
+        return redirect(url_for('pharmacy.list_medicines'))
+    med = _map_medicine(med)
 
     if request.method == 'POST':
         try:
-            med.name = request.form['name']
-            med.category = request.form.get('category')
-            med.manufacturer = request.form.get('manufacturer')
-            med.unit_price = float(request.form['unit_price'])
-            med.reorder_level = int(request.form.get('reorder_level', 10))
-            if request.form.get('expiry_date'):
-                med.expiry_date = datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date()
-            db.session.commit()
-            flash(f'{med.name} updated.', 'success')
+            db_operations.update_medicine(
+                medicine_id=id,
+                name=request.form['name'],
+                category=request.form.get('category'),
+                manufacturer=request.form.get('manufacturer'),
+                unit_price=float(request.form['unit_price']),
+                reorder_level=int(request.form.get('reorder_level', 10)),
+                expiry_date=datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date() if request.form.get('expiry_date') else None,
+            )
+            flash(f'{request.form["name"]} updated.', 'success')
             return redirect(url_for('pharmacy.list_medicines'))
         except Exception as e:
-            db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
 
     return render_template('pharmacy/medicine_form.html', medicine=med)
@@ -103,15 +156,19 @@ def edit_medicine(id):
 @login_required
 @role_required('admin', 'billing')
 def update_stock(id):
-    med = Medicine.query.get_or_404(id)
+    med = db_operations.get_medicine_by_id(id)
+    if not med:
+        flash('Medicine not found.', 'danger')
+        return redirect(url_for('pharmacy.list_medicines'))
     qty = int(request.form.get('quantity', 0))
     action = request.form.get('action', 'add')
 
     if action == 'add':
-        med.add_stock(qty)
+        db_operations.update_medicine_stock(id, qty)
         flash(f'Added {qty} units to {med.name}.', 'success')
     elif action == 'remove':
-        if med.reduce_stock(qty):
+        if int(med.stock_quantity or 0) >= qty:
+            db_operations.update_medicine_stock(id, -qty)
             flash(f'Removed {qty} units from {med.name}.', 'warning')
         else:
             flash('Insufficient stock.', 'danger')
@@ -124,20 +181,20 @@ def update_stock(id):
 def list_prescriptions():
     page = request.args.get('page', 1, type=int)
     dispensed = request.args.get('dispensed', '')
+    per_page = 15
+    skip = (page - 1) * per_page
 
-    query = Prescription.query
-    if dispensed == 'yes':
-        query = query.filter_by(is_dispensed=True)
-    elif dispensed == 'no':
-        query = query.filter_by(is_dispensed=False)
+    is_dispensed = True if dispensed == 'yes' else False if dispensed == 'no' else None
+    doctor_id = None
+    if current_user.is_doctor():
+        doctor = db_operations.get_doctor_by_user_id(current_user.user_id)
+        doctor_id = doctor.doctor_id if doctor else None
 
-    if current_user.is_doctor() and current_user.doctor_profile:
-        query = query.filter_by(doctor_id=current_user.doctor_profile.doctor_id)
+    total = db_operations.count_prescriptions(doctor_id=doctor_id, is_dispensed=is_dispensed)
+    prescriptions = db_operations.list_prescriptions(doctor_id=doctor_id, is_dispensed=is_dispensed, skip=skip, take=per_page)
+    prescriptions_paginated = SimplePagination([_map_prescription(r) for r in prescriptions], page, per_page, total)
 
-    prescriptions = query.order_by(Prescription.prescribed_date.desc()).paginate(
-        page=page, per_page=15, error_out=False
-    )
-    return render_template('pharmacy/prescriptions.html', prescriptions=prescriptions, dispensed=dispensed)
+    return render_template('pharmacy/prescriptions.html', prescriptions=prescriptions_paginated, dispensed=dispensed)
 
 
 @pharmacy_bp.route('/prescriptions/add', methods=['GET', 'POST'])
@@ -146,14 +203,12 @@ def list_prescriptions():
 def add_prescription():
     if request.method == 'POST':
         try:
-            prescription = Prescription(
+            prescription_id = db_operations.create_prescription(
                 patient_id=int(request.form['patient_id']),
                 doctor_id=int(request.form['doctor_id']),
                 appointment_id=request.form.get('appointment_id') or None,
-                notes=request.form.get('notes', '')
+                notes=request.form.get('notes', ''),
             )
-            db.session.add(prescription)
-            db.session.flush()
 
             med_ids = request.form.getlist('medicine_id[]')
             dosages = request.form.getlist('dosage[]')
@@ -163,37 +218,38 @@ def add_prescription():
 
             for mid, dos, freq, dur, qty in zip(med_ids, dosages, frequencies, durations, quantities):
                 if mid:
-                    item = PrescriptionItem(
-                        prescription_id=prescription.prescription_id,
+                    db_operations.add_prescription_item(
+                        prescription_id=prescription_id,
                         medicine_id=int(mid),
                         dosage=dos,
                         frequency=freq,
                         duration=dur,
-                        quantity=int(qty) if qty else 1
+                        quantity=int(qty) if qty else 1,
                     )
-                    db.session.add(item)
 
-            db.session.commit()
             flash('Prescription created.', 'success')
             return redirect(url_for('pharmacy.list_prescriptions'))
         except Exception as e:
-            db.session.rollback()
             flash(f'Error: {str(e)}', 'danger')
 
-    patients = Patient.query.order_by(Patient.last_name).all()
-    doctors = Doctor.query.all()
-    medicines = Medicine.query.filter(Medicine.stock_quantity > 0).order_by(Medicine.name).all()
-    doctor_id = current_user.doctor_profile.doctor_id if current_user.is_doctor() and current_user.doctor_profile else None
-    return render_template('pharmacy/prescription_form.html',
-                           patients=patients, doctors=doctors,
-                           medicines=medicines, current_doctor_id=doctor_id)
+    patients = db_operations.list_patients(skip=0, take=10000)
+    doctors = db_operations.list_active_doctors()
+    medicines = [_map_medicine(m) for m in db_operations.list_medicines(skip=0, take=10000) if int(m.stock_quantity or 0) > 0]
+    doctor_id = None
+    if current_user.is_doctor():
+        doctor = db_operations.get_doctor_by_user_id(current_user.user_id)
+        doctor_id = doctor.doctor_id if doctor else None
+    return render_template('pharmacy/prescription_form.html', patients=patients, doctors=doctors, medicines=medicines, current_doctor_id=doctor_id)
 
 
 @pharmacy_bp.route('/prescriptions/<int:id>/dispense', methods=['POST'])
 @login_required
 @role_required('admin', 'billing')
 def dispense_prescription(id):
-    prescription = Prescription.query.get_or_404(id)
+    prescription = db_operations.get_prescription_by_id(id)
+    if not prescription:
+        flash('Prescription not found.', 'danger')
+        return redirect(url_for('pharmacy.list_prescriptions'))
 
     if prescription.is_dispensed:
         flash('This prescription has already been dispensed.', 'warning')
@@ -201,20 +257,21 @@ def dispense_prescription(id):
 
     try:
         errors = []
-        for item in prescription.items:
-            if not item.medicine.reduce_stock(item.quantity):
-                errors.append(f'Insufficient stock for {item.medicine.name}')
+        items = db_operations.get_prescription_items(id)
+        for item in items:
+            med = db_operations.get_medicine_by_id(item.medicine_id)
+            if int(med.stock_quantity or 0) < int(item.quantity or 0):
+                errors.append(f'Insufficient stock for {med.name}')
 
         if errors:
-            db.session.rollback()
             for e in errors:
                 flash(e, 'danger')
         else:
-            prescription.is_dispensed = True
-            db.session.commit()
+            for item in items:
+                db_operations.update_medicine_stock(item.medicine_id, -int(item.quantity or 0))
+            db_operations.mark_prescription_dispensed(id)
             flash('Medicines dispensed and stock updated.', 'success')
     except Exception as e:
-        db.session.rollback()
         flash(f'Error dispensing: {str(e)}', 'danger')
 
     return redirect(url_for('pharmacy.list_prescriptions'))
