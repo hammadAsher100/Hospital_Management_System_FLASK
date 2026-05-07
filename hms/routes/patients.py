@@ -10,6 +10,13 @@ from hms import db, db_operations
 from hms.db_queries import exec_procedure, fetch_rows, is_sql_server, rows_to_objects
 from hms.utils import role_required
 
+# ── Design Pattern: Chain of Responsibility ─────────────────────────────────────────
+# PatientRequestChain routes every new appointment through:
+#   TriageHandler → DiagnosisHandler → BillingHandler
+# The final context dict carries triage_level, diagnosis_status,
+# billing_status, and a one-line 'summary' for the flash message.
+from hms.patterns.chain_of_responsibility import PatientRequestChain
+
 patients_bp = Blueprint("patients", __name__)
 
 
@@ -430,6 +437,28 @@ def book_appointment():
                     appointment_time=appt_time,
                     reason=reason,
                 )
+
+                # ── Chain of Responsibility ─────────────────────────────────
+                # Pass the new appointment through Triage → Diagnosis → Billing.
+                # Any exception is caught so it never breaks the success path.
+                try:
+                    chain_ctx = {
+                        "patient_id":   patient.patient_id,
+                        "request_type": "appointment",
+                        "priority":     "urgent" if "urgent" in reason.lower() or "emergency" in reason.lower() else "normal",
+                        "diagnosis":    "",
+                        "reason":       reason,
+                        "bill_id":      None,
+                    }
+                    result = PatientRequestChain().process(chain_ctx)
+                    flash(
+                        f"Request processed — {result.get('summary', 'OK')}",
+                        "info",
+                    )
+                except Exception as chain_err:
+                    print(f"[PatientRequestChain] Non-critical error: {chain_err}")
+                # ────────────────────────────────────────────────
+
                 flash("Appointment booked successfully!", "success")
                 return redirect(url_for("patients.patient_view_appointment", id=appt_id))
 

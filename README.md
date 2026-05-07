@@ -211,6 +211,24 @@ Visit `http://127.0.0.1:5000` in your browser.
 
 ---
 
+## 🧪 Design Pattern Demo & Tests
+
+This repo includes a small runnable script + automated tests to demonstrate the implemented design patterns:
+
+### Run the demo (prints pattern output)
+
+```bash
+python scripts/patterns_demo.py
+```
+
+### Run tests (no extra dependencies; uses built-in unittest)
+
+```bash
+python -m unittest -v tests.test_patterns
+```
+
+---
+
 ## 👥 Roles & Access
 
 | Role | Access Scope |
