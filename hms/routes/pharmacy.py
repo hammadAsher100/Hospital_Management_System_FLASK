@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 from math import ceil
 from types import SimpleNamespace
 
@@ -104,7 +104,6 @@ def list_medicines():
         search=search,
         category=category,
         focus_med_id=focus_med_id,
-        today=date.today(),
     )
 
 
@@ -256,25 +255,12 @@ def list_prescriptions():
 def add_prescription():
     if request.method == 'POST':
         try:
-            doctor_id = int(request.form['doctor_id'])
-            if current_user.is_doctor():
-                current_doctor = db_operations.get_doctor_by_user_id(current_user.user_id)
-                if not current_doctor:
-                    flash('Doctor profile not found.', 'danger')
-                    return redirect(url_for('auth.logout'))
-                # Doctors can only prescribe under their own doctor profile.
-                doctor_id = int(current_doctor.doctor_id)
-
-            appointment_id = request.form.get('appointment_id')
             prescription_id = db_operations.create_prescription(
                 patient_id=int(request.form['patient_id']),
-                doctor_id=doctor_id,
-                appointment_id=int(appointment_id) if appointment_id else None,
+                doctor_id=int(request.form['doctor_id']),
+                appointment_id=request.form.get('appointment_id') or None,
                 notes=request.form.get('notes', ''),
             )
-            if not prescription_id:
-                flash('Could not create prescription record.', 'danger')
-                return redirect(url_for('pharmacy.add_prescription'))
 
             med_ids = request.form.getlist('medicine_id[]')
             dosages = request.form.getlist('dosage[]')
@@ -300,22 +286,13 @@ def add_prescription():
 
     patients = db_operations.list_patients(skip=0, take=10000)
     doctors = db_operations.list_active_doctors()
-    appointments = db_operations.list_appointments(skip=0, take=10000)
     medicines = [_map_medicine(m) for m in db_operations.list_medicines(skip=0, take=10000) if int(m.stock_quantity or 0) > 0]
+    appointments = db_operations.list_completed_appointments(skip=0, take=10000)
     doctor_id = None
     if current_user.is_doctor():
         doctor = db_operations.get_doctor_by_user_id(current_user.user_id)
         doctor_id = doctor.doctor_id if doctor else None
-        if doctor_id:
-            appointments = [a for a in appointments if int(getattr(a, 'doctor_id', 0) or 0) == int(doctor_id)]
-    return render_template(
-        'pharmacy/prescription_form.html',
-        patients=patients,
-        doctors=doctors,
-        appointments=appointments,
-        medicines=medicines,
-        current_doctor_id=doctor_id
-    )
+    return render_template('pharmacy/prescription_form.html', patients=patients, doctors=doctors, medicines=medicines, appointments=appointments, current_doctor_id=doctor_id)
 
 
 @pharmacy_bp.route('/prescriptions/<int:id>/dispense', methods=['POST'])

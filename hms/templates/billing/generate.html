@@ -55,26 +55,30 @@
             <!-- Bill Items -->
             <h6 class="fw-semibold mb-3">Bill Items</h6>
             <div id="billItems">
-                {% if is_patient_user and default_bill_items %}
+                {% if default_bill_items %}
                 {% for item in default_bill_items %}
                 <div class="row g-2 align-items-end mb-2 bill-item-row">
                     <div class="col-md-5">
                         <label class="form-label small">Description</label>
-                        <input type="text" name="description[]" class="form-control form-control-sm hms-input" value="{{ item.description }}" readonly required>
+                        <input type="text" name="description[]" class="form-control form-control-sm hms-input" value="{{ item.description }}" {% if is_patient_user %}readonly{% endif %} required>
                     </div>
                     <div class="col-md-2">
                         <label class="form-label small">Qty</label>
-                        <input type="number" name="quantity[]" class="form-control form-control-sm hms-input qty-input" min="1" value="{{ item.quantity }}" readonly required>
+                        <input type="number" name="quantity[]" class="form-control form-control-sm hms-input qty-input" min="1" value="{{ item.quantity }}" {% if is_patient_user %}readonly{% endif %} required>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label small">Unit Price ($)</label>
-                        <input type="number" name="unit_price[]" class="form-control form-control-sm hms-input price-input" min="0" step="0.01" value="{{ '%.2f'|format(item.unit_price) }}" readonly required>
+                        <input type="number" name="unit_price[]" class="form-control form-control-sm hms-input price-input" min="0" step="0.01" value="{{ '%.2f'|format(item.unit_price) }}" {% if is_patient_user %}readonly{% endif %} required>
                     </div>
                     <div class="col-md-1">
                         <label class="form-label small">Total</label>
                         <div class="item-total fw-medium pt-1 mono-text">{{ '%.2f'|format(item.quantity * item.unit_price) }}</div>
                     </div>
-                    <div class="col-md-1"></div>
+                    <div class="col-md-1">
+                        {% if not is_patient_user and not loop.first %}
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-item" onclick="this.closest('.bill-item-row').remove(); updateTotals();"><i class="bi bi-trash"></i></button>
+                        {% endif %}
+                    </div>
                 </div>
                 {% endfor %}
                 {% else %}
@@ -137,17 +141,19 @@ function updateTotals() {
 }
 
 function addItem() {
-    
     const container = document.getElementById('billItems');
     const first = container.querySelector('.bill-item-row');
     const clone = first.cloneNode(true);
-    clone.querySelectorAll('input').forEach(inp => inp.value = inp.type === 'number' ? (inp.classList.contains('qty-input') ? 1 : '') : '');
+    clone.querySelectorAll('input').forEach(inp => {
+        inp.removeAttribute('readonly');
+        inp.value = inp.type === 'number' ? (inp.classList.contains('qty-input') ? 1 : '') : '';
+    });
     clone.querySelector('.item-total').textContent = '0.00';
-    clone.querySelector('.remove-item').style.display = 'inline-block';
-    clone.querySelector('.remove-item').onclick = function() {
-        clone.remove();
-        updateTotals();
-    };
+    const removeBtn = clone.querySelector('.remove-item');
+    if (removeBtn) {
+        removeBtn.style.display = 'inline-block';
+        removeBtn.onclick = function() { clone.remove(); updateTotals(); };
+    }
     clone.querySelectorAll('input').forEach(inp => inp.addEventListener('input', updateTotals));
     container.appendChild(clone);
     updateTotals();
@@ -155,14 +161,30 @@ function addItem() {
 
 document.querySelectorAll('.qty-input, .price-input').forEach(inp => inp.addEventListener('input', updateTotals));
 updateTotals();
-{% if is_patient_user %}
+
+/* When appointment dropdown changes, reload page to auto-populate bill items */
 document.getElementById('appointmentSelect')?.addEventListener('change', function () {
     const params = new URLSearchParams(window.location.search);
+    const patientSelect = document.querySelector('[name="patient_id"]');
+    const patientId = patientSelect ? patientSelect.value : '';
     const selected = this.value || '';
+    if (patientId) {
+        params.set('patient_id', patientId);
+    }
     if (selected) {
         params.set('appointment_id', selected);
     } else {
         params.delete('appointment_id');
+    }
+    window.location.href = `${window.location.pathname}?${params.toString()}`;
+});
+
+{% if not is_patient_user %}
+/* When patient dropdown changes, reload to filter appointments for that patient */
+document.querySelector('[name="patient_id"]')?.addEventListener('change', function () {
+    const params = new URLSearchParams();
+    if (this.value) {
+        params.set('patient_id', this.value);
     }
     window.location.href = `${window.location.pathname}?${params.toString()}`;
 });
