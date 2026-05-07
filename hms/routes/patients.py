@@ -112,6 +112,22 @@ def _fetch_active_doctors():
     return db_operations.list_active_doctors()
 
 
+def _get_doctor_meta(doctor_id, cache):
+    """Return cached doctor phone and consultation fee for patient-facing pages."""
+    if not doctor_id:
+        return {"phone": None, "consultation_fee": 0.0}
+    if doctor_id in cache:
+        return cache[doctor_id]
+
+    doctor = db_operations.get_doctor_by_id(doctor_id)
+    meta = {
+        "phone": getattr(doctor, "phone", None) if doctor else None,
+        "consultation_fee": float(getattr(doctor, "consultation_fee", 0) or 0),
+    }
+    cache[doctor_id] = meta
+    return meta
+
+
 @patients_bp.route("/")
 @login_required
 def list_patients():
@@ -204,6 +220,7 @@ def view_patient(id):
     # ── CHANGED: appointments fetched via usp_ListAppointments (uses vw_AppointmentDetails) ──
     appts_raw = db_operations.list_appointments(patient_id=id, skip=0, take=500)
     appts = []
+    doctor_meta_cache = {}
     for a in appts_raw:
         a.appointment_date = _parse_date(a.appointment_date)
         a.appointment_time = _parse_time(a.appointment_time)
@@ -211,11 +228,12 @@ def view_patient(id):
             a.created_at = datetime.now()
         else:
             a.created_at = _parse_dt(a.created_at)
+        doctor_meta = _get_doctor_meta(getattr(a, "doctor_id", None), doctor_meta_cache)
         a.doctor = SimpleNamespace(
             full_name=getattr(a, "doctor_full_name", "—"),
             specialization=getattr(a, "doctor_specialization", None),
-            phone=None,
-            consultation_fee=None,
+            phone=doctor_meta["phone"],
+            consultation_fee=doctor_meta["consultation_fee"],
         )
         appts.append(a)
 
@@ -318,15 +336,17 @@ def patient_dashboard():
         skip=0, take=100
     )
     upcoming = []
+    doctor_meta_cache = {}
     for a in upcoming_raw:
         if _parse_date(a.appointment_date) >= today:
             a.appointment_date = _parse_date(a.appointment_date)
             a.appointment_time = _parse_time(a.appointment_time)
+            doctor_meta = _get_doctor_meta(getattr(a, "doctor_id", None), doctor_meta_cache)
             a.doctor = SimpleNamespace(
                 full_name=getattr(a, "doctor_full_name", "—"),
                 specialization=getattr(a, "doctor_specialization", None),
-                phone=None,
-                consultation_fee=None,
+                phone=doctor_meta["phone"],
+                consultation_fee=doctor_meta["consultation_fee"],
             )
             upcoming.append(a)
 
@@ -341,11 +361,12 @@ def patient_dashboard():
         if appt_date < today:
             a.appointment_date = appt_date
             a.appointment_time = _parse_time(a.appointment_time)
+            doctor_meta = _get_doctor_meta(getattr(a, "doctor_id", None), doctor_meta_cache)
             a.doctor = SimpleNamespace(
                 full_name=getattr(a, "doctor_full_name", "—"),
                 specialization=getattr(a, "doctor_specialization", None),
-                phone=None,
-                consultation_fee=None,
+                phone=doctor_meta["phone"],
+                consultation_fee=doctor_meta["consultation_fee"],
             )
             past.append(a)
 
@@ -456,14 +477,16 @@ def my_appointments():
         take=per_page
     )
     appts = []
+    doctor_meta_cache = {}
     for a in appts_raw:
         a.appointment_date = _parse_date(a.appointment_date)
         a.appointment_time = _parse_time(a.appointment_time)
+        doctor_meta = _get_doctor_meta(getattr(a, "doctor_id", None), doctor_meta_cache)
         a.doctor = SimpleNamespace(
             full_name=getattr(a, "doctor_full_name", "—"),
             specialization=getattr(a, "doctor_specialization", None),
-            phone=None,
-            consultation_fee=None,
+            phone=doctor_meta["phone"],
+            consultation_fee=doctor_meta["consultation_fee"],
         )
         appts.append(a)
 
@@ -490,11 +513,12 @@ def patient_view_appointment(id):
     appt_raw.appointment_date = _parse_date(appt_raw.appointment_date)
     appt_raw.appointment_time = _parse_time(appt_raw.appointment_time)
     appt_raw.created_at = _parse_dt(appt_raw.created_at)
+    doctor_meta = _get_doctor_meta(getattr(appt_raw, "doctor_id", None), {})
     appt_raw.doctor = SimpleNamespace(
         full_name=getattr(appt_raw, "doctor_full_name", "—"),
         specialization=getattr(appt_raw, "doctor_specialization", None),
-        phone=None,
-        consultation_fee=None,
+        phone=doctor_meta["phone"],
+        consultation_fee=doctor_meta["consultation_fee"],
     )
 
     # ── CHANGED: uses usp_GetPatientByUserId ──

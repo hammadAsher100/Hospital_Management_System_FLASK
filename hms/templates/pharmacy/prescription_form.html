@@ -29,6 +29,17 @@
                     </select>
                 </div>
                 <div class="col-md-4">
+                    <label class="form-label">Appointment (optional)</label>
+                    <select name="appointment_id" class="form-select hms-input">
+                        <option value="">No linked appointment</option>
+                        {% for a in appointments %}
+                        <option value="{{ a.appointment_id }}">
+                            #{{ a.appointment_id }} — {{ a.patient_full_name or '' }} — {{ a.appointment_date.strftime('%d %b %Y') }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
                     <label class="form-label">Notes</label>
                     <textarea name="notes" class="form-control hms-input" rows="1" placeholder="General notes..."></textarea>
                 </div>

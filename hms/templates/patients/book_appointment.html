@@ -41,9 +41,7 @@
                                             <div class="doctor-info">
                                                 <h6 class="mb-1">{{ doctor.full_name }}</h6>
                                                 <p class="specialty">{{ doctor.specialization }}</p>
-                                                {% if doctor.consultation_fee %}
-                                                <p class="fee">Consultation: ${{ doctor.consultation_fee }}</p>
-                                                {% endif %}
+                                                <p class="fee">Consultation: ${{ doctor.consultation_fee or 0 }}</p>
                                             </div>
                                         </label>
                                     </div>

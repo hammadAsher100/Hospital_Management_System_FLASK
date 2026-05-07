@@ -208,6 +208,131 @@ CREATE TABLE Prescription_Items (
 CREATE INDEX IX_PrescItems_pres ON Prescription_Items (prescription_id);
 GO
 
+-- ── Audit Logs ────────────────────────────────────────────────
+CREATE TABLE Audit_Logs (
+    log_id        INT IDENTITY(1,1) PRIMARY KEY,
+    entity_name   NVARCHAR(50)  NOT NULL,
+    entity_id     INT           NULL,
+    action_type   NVARCHAR(20)  NOT NULL,
+    changed_by    NVARCHAR(128) NULL,
+    details       NVARCHAR(MAX) NULL,
+    changed_at    DATETIME      NOT NULL DEFAULT GETDATE()
+);
+GO
+
+CREATE INDEX IX_AuditLogs_entity_time ON Audit_Logs (entity_name, changed_at DESC);
+GO
+
+IF OBJECT_ID('dbo.trg_Prescriptions_Audit', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Prescriptions_Audit;
+GO
+CREATE TRIGGER dbo.trg_Prescriptions_Audit
+ON dbo.Prescriptions
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO Audit_Logs (entity_name, entity_id, action_type, changed_by, details)
+    SELECT
+        'Prescriptions',
+        COALESCE(i.prescription_id, d.prescription_id),
+        CASE
+            WHEN i.prescription_id IS NOT NULL AND d.prescription_id IS NULL THEN 'INSERT'
+            WHEN i.prescription_id IS NOT NULL AND d.prescription_id IS NOT NULL THEN 'UPDATE'
+            ELSE 'DELETE'
+        END,
+        SUSER_SNAME(),
+        CONCAT(
+            'patient_id=', COALESCE(CONVERT(NVARCHAR(20), i.patient_id), CONVERT(NVARCHAR(20), d.patient_id)),
+            '; doctor_id=', COALESCE(CONVERT(NVARCHAR(20), i.doctor_id), CONVERT(NVARCHAR(20), d.doctor_id)),
+            '; appointment_id=', COALESCE(CONVERT(NVARCHAR(20), i.appointment_id), CONVERT(NVARCHAR(20), d.appointment_id))
+        )
+    FROM inserted i
+    FULL OUTER JOIN deleted d ON i.prescription_id = d.prescription_id;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_PrescriptionItems_Audit', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_PrescriptionItems_Audit;
+GO
+CREATE TRIGGER dbo.trg_PrescriptionItems_Audit
+ON dbo.Prescription_Items
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO Audit_Logs (entity_name, entity_id, action_type, changed_by, details)
+    SELECT
+        'Prescription_Items',
+        COALESCE(i.pres_item_id, d.pres_item_id),
+        CASE
+            WHEN i.pres_item_id IS NOT NULL AND d.pres_item_id IS NULL THEN 'INSERT'
+            WHEN i.pres_item_id IS NOT NULL AND d.pres_item_id IS NOT NULL THEN 'UPDATE'
+            ELSE 'DELETE'
+        END,
+        SUSER_SNAME(),
+        CONCAT(
+            'prescription_id=', COALESCE(CONVERT(NVARCHAR(20), i.prescription_id), CONVERT(NVARCHAR(20), d.prescription_id)),
+            '; medicine_id=', COALESCE(CONVERT(NVARCHAR(20), i.medicine_id), CONVERT(NVARCHAR(20), d.medicine_id)),
+            '; qty=', COALESCE(CONVERT(NVARCHAR(20), i.quantity), CONVERT(NVARCHAR(20), d.quantity))
+        )
+    FROM inserted i
+    FULL OUTER JOIN deleted d ON i.pres_item_id = d.pres_item_id;
+END
+GO
+
+IF OBJECT_ID('dbo.trg_Billing_Audit', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trg_Billing_Audit;
+GO
+CREATE TRIGGER dbo.trg_Billing_Audit
+ON dbo.Billing
+AFTER INSERT, UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO Audit_Logs (entity_name, entity_id, action_type, changed_by, details)
+    SELECT
+        'Billing',
+        COALESCE(i.bill_id, d.bill_id),
+        CASE
+            WHEN i.bill_id IS NOT NULL AND d.bill_id IS NULL THEN 'INSERT'
+            WHEN i.bill_id IS NOT NULL AND d.bill_id IS NOT NULL THEN 'UPDATE'
+            ELSE 'DELETE'
+        END,
+        SUSER_SNAME(),
+        CONCAT(
+            'patient_id=', COALESCE(CONVERT(NVARCHAR(20), i.patient_id), CONVERT(NVARCHAR(20), d.patient_id)),
+            '; appointment_id=', COALESCE(CONVERT(NVARCHAR(20), i.appointment_id), CONVERT(NVARCHAR(20), d.appointment_id)),
+            '; total=', COALESCE(CONVERT(NVARCHAR(30), i.total_amount), CONVERT(NVARCHAR(30), d.total_amount)),
+            '; paid=', COALESCE(CONVERT(NVARCHAR(30), i.paid_amount), CONVERT(NVARCHAR(30), d.paid_amount)),
+            '; status=', COALESCE(i.status, d.status)
+        )
+    FROM inserted i
+    FULL OUTER JOIN deleted d ON i.bill_id = d.bill_id;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_ListAuditLogs', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_ListAuditLogs;
+GO
+CREATE PROCEDURE dbo.usp_ListAuditLogs
+    @entity_name NVARCHAR(50) = NULL,
+    @skip INT = 0,
+    @take INT = 200
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT log_id, entity_name, entity_id, action_type, changed_by, details, changed_at
+    FROM Audit_Logs
+    WHERE (@entity_name IS NULL OR entity_name = @entity_name)
+    ORDER BY changed_at DESC, log_id DESC
+    OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY;
+END
+GO
+
 -- ── Reporting Views ──────────────────────────────────────────────
 IF OBJECT_ID('dbo.ufn_CalculateAge', 'FN') IS NOT NULL
     DROP FUNCTION dbo.ufn_CalculateAge;
@@ -519,7 +644,8 @@ SELECT
     d.first_name AS doctor_first_name,
     d.last_name AS doctor_last_name,
     CONCAT('Dr. ', d.first_name, ' ', d.last_name) AS doctor_full_name,
-    d.specialization AS doctor_specialization
+    d.specialization AS doctor_specialization,
+    d.consultation_fee
 FROM Appointments a
 INNER JOIN Patients p ON p.patient_id = a.patient_id
 INNER JOIN Doctors d ON d.doctor_id = a.doctor_id;
@@ -1117,6 +1243,106 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID('dbo.usp_GetPrescriptionById', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetPrescriptionById;
+GO
+CREATE PROCEDURE dbo.usp_GetPrescriptionById
+    @prescription_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        pr.prescription_id,
+        pr.patient_id,
+        pr.doctor_id,
+        pr.appointment_id,
+        pr.prescribed_date,
+        pr.notes,
+        pr.is_dispensed,
+        CONCAT(p.first_name, ' ', p.last_name) AS patient_full_name,
+        CONCAT('Dr. ', d.first_name, ' ', d.last_name) AS doctor_full_name
+    FROM Prescriptions pr
+    INNER JOIN Patients p ON p.patient_id = pr.patient_id
+    INNER JOIN Doctors d ON d.doctor_id = pr.doctor_id
+    WHERE pr.prescription_id = @prescription_id;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_CreatePrescription', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_CreatePrescription;
+GO
+CREATE PROCEDURE dbo.usp_CreatePrescription
+    @patient_id INT,
+    @doctor_id INT,
+    @appointment_id INT = NULL,
+    @notes NVARCHAR(MAX) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @appointment_id IS NOT NULL
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1
+            FROM Appointments a
+            WHERE a.appointment_id = @appointment_id
+              AND a.patient_id = @patient_id
+              AND a.doctor_id = @doctor_id
+        )
+        BEGIN
+            RAISERROR('Appointment does not match selected patient/doctor.', 16, 1);
+            RETURN;
+        END
+    END
+
+    INSERT INTO Prescriptions (patient_id, doctor_id, appointment_id, notes, is_dispensed)
+    VALUES (@patient_id, @doctor_id, @appointment_id, @notes, 0);
+
+    SELECT CAST(SCOPE_IDENTITY() AS INT) AS id;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_AddPrescriptionItem', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_AddPrescriptionItem;
+GO
+CREATE PROCEDURE dbo.usp_AddPrescriptionItem
+    @prescription_id INT,
+    @medicine_id INT,
+    @dosage NVARCHAR(50) = NULL,
+    @frequency NVARCHAR(50) = NULL,
+    @duration NVARCHAR(50) = NULL,
+    @quantity INT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @quantity IS NULL OR @quantity < 1
+        SET @quantity = 1;
+
+    INSERT INTO Prescription_Items (prescription_id, medicine_id, dosage, frequency, duration, quantity)
+    VALUES (@prescription_id, @medicine_id, @dosage, @frequency, @duration, @quantity);
+
+    SELECT CAST(SCOPE_IDENTITY() AS INT) AS id;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_MarkPrescriptionDispensed', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_MarkPrescriptionDispensed;
+GO
+CREATE PROCEDURE dbo.usp_MarkPrescriptionDispensed
+    @prescription_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE Prescriptions
+    SET is_dispensed = 1
+    WHERE prescription_id = @prescription_id;
+
+    SELECT CAST(1 AS BIT) AS success;
+END
+GO
+
 IF OBJECT_ID('dbo.usp_ListDoctors', 'P') IS NOT NULL
     DROP PROCEDURE dbo.usp_ListDoctors;
 GO
@@ -1128,6 +1354,20 @@ BEGIN
            (SELECT COUNT(*) FROM Appointments a WHERE a.doctor_id = d.doctor_id) AS total_appointments
     FROM Doctors d
     ORDER BY d.specialization, d.last_name, d.first_name;
+END
+GO
+
+IF OBJECT_ID('dbo.usp_GetDoctorById', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetDoctorById;
+GO
+CREATE PROCEDURE dbo.usp_GetDoctorById
+    @doctor_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT d.*, CONCAT('Dr. ', d.first_name, ' ', d.last_name) AS full_name
+    FROM Doctors d
+    WHERE d.doctor_id = @doctor_id;
 END
 GO
 

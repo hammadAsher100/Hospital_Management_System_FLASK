@@ -193,7 +193,6 @@ def get_user_by_username(username: str) -> Optional[SimpleNamespace]:
     rows = execute_procedure("usp_GetUserByUsername", {"username": username})
     return dict_to_object(rows[0]) if rows else None
 
-
 def get_user_by_email(email: str) -> Optional[SimpleNamespace]:
     """Get user by email (direct query)."""
     if not email:
@@ -449,6 +448,7 @@ def list_appointments(status: str = None, doctor_id: int = None, patient_id: int
         "take": take
     })
     appointments = []
+    doctor_fee_cache: Dict[int, float] = {}
     for row in rows:
         appt = dict_to_object(row)
         appt.appointment_date = appt.appointment_date if isinstance(appt.appointment_date, date) else datetime.strptime(str(appt.appointment_date), "%Y-%m-%d").date()
@@ -456,6 +456,15 @@ def list_appointments(status: str = None, doctor_id: int = None, patient_id: int
             raw_time = str(appt.appointment_time)
             if ":" in raw_time:
                 appt.appointment_time = datetime.strptime(raw_time[:8], "%H:%M:%S").time()
+        if not hasattr(appt, "consultation_fee") or appt.consultation_fee is None:
+            did = getattr(appt, "doctor_id", None)
+            if did in doctor_fee_cache:
+                appt.consultation_fee = doctor_fee_cache[did]
+            else:
+                doctor = get_doctor_by_id(did) if did else None
+                fee = float(getattr(doctor, "consultation_fee", 0) or 0) if doctor else 0.0
+                doctor_fee_cache[did] = fee
+                appt.consultation_fee = fee
         appointments.append(appt)
     return appointments
 
@@ -466,6 +475,9 @@ def get_appointment_by_id(appointment_id: int) -> Optional[SimpleNamespace]:
     if rows:
         appt = dict_to_object(rows[0])
         appt.appointment_date = appt.appointment_date if isinstance(appt.appointment_date, date) else datetime.strptime(str(appt.appointment_date), "%Y-%m-%d").date()
+        if not hasattr(appt, "consultation_fee") or appt.consultation_fee is None:
+            doctor = get_doctor_by_id(getattr(appt, "doctor_id", None))
+            appt.consultation_fee = float(getattr(doctor, "consultation_fee", 0) or 0) if doctor else 0.0
         return appt
     return None
 
@@ -506,8 +518,18 @@ def reschedule_appointment(appointment_id: int, new_date: date, new_time: time) 
 # ============================================================
 
 def get_doctor_by_id(doctor_id: int) -> Optional[SimpleNamespace]:
-    """Get doctor by ID"""
+    """Get doctor by ID.
+
+    Some schema versions do not define usp_GetDoctorById, so we fall back
+    to a direct Doctors query to keep consultation fee lookups working.
+    """
     rows = execute_procedure("usp_GetDoctorById", {"doctor_id": doctor_id})
+    if not rows:
+        rows = execute_query(
+            "SELECT d.*, CONCAT('Dr. ', d.first_name, ' ', d.last_name) AS full_name "
+            "FROM Doctors d WHERE d.doctor_id = ?",
+            (doctor_id,),
+        )
     return dict_to_object(rows[0]) if rows else None
 
 
@@ -765,6 +787,7 @@ def list_completed_appointments(patient_id: int = None, skip: int = 0, take: int
         "take": take
     })
     appointments = []
+    doctor_fee_cache: Dict[int, float] = {}
     for row in rows:
         appt = dict_to_object(row)
         appt.appointment_date = appt.appointment_date if isinstance(appt.appointment_date, date) else datetime.strptime(str(appt.appointment_date), "%Y-%m-%d").date()
@@ -772,6 +795,15 @@ def list_completed_appointments(patient_id: int = None, skip: int = 0, take: int
             raw_time = str(appt.appointment_time)
             if ":" in raw_time:
                 appt.appointment_time = datetime.strptime(raw_time[:8], "%H:%M:%S").time()
+        if not hasattr(appt, "consultation_fee") or appt.consultation_fee is None:
+            did = getattr(appt, "doctor_id", None)
+            if did in doctor_fee_cache:
+                appt.consultation_fee = doctor_fee_cache[did]
+            else:
+                doctor = get_doctor_by_id(did) if did else None
+                fee = float(getattr(doctor, "consultation_fee", 0) or 0) if doctor else 0.0
+                doctor_fee_cache[did] = fee
+                appt.consultation_fee = fee
         appointments.append(appt)
     return appointments
 
@@ -817,6 +849,12 @@ def discharge_patient(admission_id: int) -> bool:
 def get_prescription_by_id(prescription_id: int) -> Optional[SimpleNamespace]:
     """Get prescription by ID"""
     rows = execute_procedure("usp_GetPrescriptionById", {"prescription_id": prescription_id})
+    if not rows:
+        rows = execute_query(
+            "SELECT prescription_id, patient_id, doctor_id, appointment_id, prescribed_date, notes, is_dispensed "
+            "FROM Prescriptions WHERE prescription_id = ?",
+            (prescription_id,),
+        )
     return dict_to_object(rows[0]) if rows else None
 
 
@@ -857,6 +895,12 @@ def create_prescription(patient_id: int, doctor_id: int, appointment_id: int = N
         "appointment_id": appointment_id,
         "notes": notes
     })
+    if not rows:
+        return execute_insert(
+            "INSERT INTO Prescriptions (patient_id, doctor_id, appointment_id, notes, is_dispensed) "
+            "OUTPUT INSERTED.prescription_id VALUES (?, ?, ?, ?, 0)",
+            (patient_id, doctor_id, appointment_id, notes),
+        )
     return int(rows[0]["id"]) if rows else None
 
 
@@ -871,12 +915,27 @@ def add_prescription_item(prescription_id: int, medicine_id: int, dosage: str,
         "duration": duration,
         "quantity": quantity
     })
+    if not rows:
+        qty = int(quantity or 1)
+        if qty < 1:
+            qty = 1
+        return execute_insert(
+            "INSERT INTO Prescription_Items (prescription_id, medicine_id, dosage, frequency, duration, quantity) "
+            "OUTPUT INSERTED.pres_item_id VALUES (?, ?, ?, ?, ?, ?)",
+            (prescription_id, medicine_id, dosage, frequency, duration, qty),
+        )
     return int(rows[0]["id"]) if rows else None
 
 
 def mark_prescription_dispensed(prescription_id: int) -> bool:
     """Mark prescription as dispensed"""
-    return bool(execute_procedure("usp_MarkPrescriptionDispensed", {"prescription_id": prescription_id}))
+    rows = execute_procedure("usp_MarkPrescriptionDispensed", {"prescription_id": prescription_id})
+    if rows:
+        return True
+    return execute_update(
+        "UPDATE Prescriptions SET is_dispensed = 1 WHERE prescription_id = ?",
+        (prescription_id,),
+    )
 
 
 # ============================================================
