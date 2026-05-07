@@ -6,6 +6,12 @@ from flask_login import current_user, login_required, login_user, logout_user
 from hms import db_operations
 from hms.models.user import User
 
+# ── Design Pattern: Factory ────────────────────────────────────────────────
+# UserRoleFactory creates a role-specific wrapper object (AdminUser, DoctorUser,
+# PatientUser, NurseUser, BillingUser) that encapsulates permissions and the
+# correct dashboard URL for each role.
+from hms.patterns.factory import UserRoleFactory
+
 auth_bp = Blueprint('auth', __name__)
 
 
@@ -180,15 +186,25 @@ def validate_module_access(user, module):
 
 
 def redirect_based_on_role(user):
-    """Redirect user to appropriate dashboard based on their role"""
-    if user.is_patient():
-        return redirect(url_for('patients.patient_dashboard'))
-    elif user.is_doctor():
-        return redirect(url_for('staff.doctor_dashboard'))
-    elif user.is_nurse():
-        return redirect(url_for('staff.nurse_dashboard'))
-    else:  # admin or billing - both go to admin dashboard
-        return redirect(url_for('admin.dashboard'))
+    """
+    Redirect user to the appropriate dashboard based on their role.
+
+    **Factory Pattern** — delegates dashboard-URL resolution to a
+    role-specific ``RoleUser`` object produced by ``UserRoleFactory``
+    instead of a hard-coded if/elif chain.
+    """
+    try:
+        role_user = UserRoleFactory.create(user)
+        dashboard_url = role_user.get_dashboard_url()
+        print(
+            f"[Factory] Created {role_user.__class__.__name__} for "
+            f"'{user.username}' → {dashboard_url}"
+        )
+        return redirect(dashboard_url)
+    except (ValueError, Exception) as exc:
+        # Fallback: unknown role → send to login
+        print(f"[Factory] Could not resolve role '{getattr(user, 'role', '?')}': {exc}")
+        return redirect(url_for('auth.login'))
 
 @auth_bp.route('/profile', methods=['GET', 'POST'])
 @login_required

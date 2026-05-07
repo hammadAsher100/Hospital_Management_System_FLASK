@@ -4,36 +4,53 @@ from flask import Flask, render_template
 from flask_login import LoginManager
 from config import get_db_connection_params, config
 
+# ── Design Pattern: Singleton ────────────────────────────────────────────────
+# DatabaseSingleton is imported here (before the Database wrapper is defined)
+# so that get_connection() can delegate to it.  The actual singleton instance
+# is created lazily inside Database.init_app() once connection params are known.
+from hms.patterns.singleton import DatabaseSingleton
+
 
 class Database:
-    """Simple database wrapper using pyodbc instead of SQLAlchemy."""
-    
+    """
+    Database wrapper using pyodbc instead of SQLAlchemy.
+
+    **Singleton Pattern** — ``get_connection()`` delegates to
+    ``DatabaseSingleton`` so the whole application shares a single
+    ``pyodbc`` connection instance rather than opening a new one on
+    every call.  The singleton is initialised lazily in ``init_app()``
+    once the connection parameters are available.
+    """
+
     def __init__(self):
         self.connection_params = None
-    
+
     def init_app(self, app):
-        """Initialize database with app configuration."""
+        """Initialise database with app configuration and prime the Singleton."""
         self.connection_params = app.config.get('DB_CONNECTION_PARAMS', {})
-    
+        # Prime the Singleton instance so the first request doesn't pay the
+        # connection-open cost.  Safe to call multiple times — only one
+        # instance is ever created.
+        if self.connection_params and self.connection_params.get('driver'):
+            try:
+                DatabaseSingleton.get_instance(self.connection_params)
+            except Exception as exc:
+                print(f"[Database.init_app] Singleton priming deferred: {exc}")
+
     def get_connection(self):
-        """Get a new database connection."""
+        """
+        Return the shared database connection via the Singleton.
+
+        The Singleton transparently reconnects if the connection has
+        been closed or lost, so callers never need to handle that.
+        """
         if not self.connection_params:
             raise RuntimeError("Database not initialized. Call init_app first.")
-        
-        driver = self.connection_params['driver']
-        server = self.connection_params['server']
-        database = self.connection_params['database']
-        username = self.connection_params.get('username')
-        password = self.connection_params.get('password')
-        
-        conn_str = f"DRIVER={{{driver}}};SERVER={server};DATABASE={database};"
-        
-        if username and password:
-            conn_str += f"UID={username};PWD={password};"
-        else:
-            conn_str += "Trusted_Connection=yes;"
-        
-        return pyodbc.connect(conn_str)
+
+        # ── Singleton Pattern ────────────────────────────────────────────
+        # Obtain (or create) the singleton and return its shared connection.
+        singleton = DatabaseSingleton.get_instance(self.connection_params)
+        return singleton.get_connection()
 
 
 db = Database()

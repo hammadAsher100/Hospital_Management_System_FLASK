@@ -1,0 +1,334 @@
+{% extends 'base.html' %}
+{% block title %}Advanced Bill Generator{% endblock %}
+{% block page_title %}Advanced Bill Generator{% endblock %}
+
+{% block content %}
+{# ================================================================
+   Decorator Pattern — Advanced Bill Generation
+   Each checked charge wraps the base bill with a new decorator layer.
+   ================================================================ #}
+<div class="row g-4">
+
+  <!-- ── Left col: patient / appointment / base charge ─────────── -->
+  <div class="col-lg-7">
+    <form method="POST" id="advBillForm">
+
+      <!-- Patient & appointment -->
+      <div class="card hms-card mb-4">
+        <div class="card-header hms-card-header">
+          <i class="bi bi-person-lines-fill me-2"></i>Patient &amp; Appointment
+        </div>
+        <div class="card-body p-4">
+          <div class="row g-3">
+
+            <div class="col-md-6">
+              <label class="form-label required">Patient</label>
+              <select name="patient_id" id="patientSelect" class="form-select hms-input" required>
+                <option value="">Select patient…</option>
+                {% for p in patients %}
+                <option value="{{ p.patient_id }}"
+                        {% if preselect == p.patient_id %}selected{% endif %}>
+                  {{ p.full_name }} — {{ p.phone }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Link to Appointment <span class="text-muted">(optional)</span></label>
+              <select name="appointment_id" id="appointmentSelect" class="form-select hms-input">
+                <option value="">None</option>
+                {% for a in appointments %}
+                <option value="{{ a.appointment_id }}">
+                  #{{ a.appointment_id }} —
+                  {{ a.patient.full_name if a.patient else '' }} —
+                  {{ a.appointment_date.strftime('%d %b %Y') if a.appointment_date else '' }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label required">Base Description</label>
+              <input type="text" name="base_description" class="form-control hms-input"
+                     value="Consultation Fee" required>
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label required">Base Amount (PKR)</label>
+              <input type="number" name="base_amount" id="baseAmount"
+                     class="form-control hms-input" min="0" step="0.01"
+                     placeholder="0.00" required oninput="recalcTotal()">
+            </div>
+
+            <div class="col-md-3">
+              <label class="form-label">Payment Method</label>
+              <select name="payment_method" class="form-select hms-input">
+                <option value="">Select…</option>
+                {% for m in ['Cash','Card','Bank Transfer','Insurance','Online'] %}
+                <option value="{{ m }}">{{ m }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+          </div><!-- /row -->
+        </div><!-- /card-body -->
+      </div><!-- /card -->
+
+      <!-- Decorator layers -->
+      <div class="card hms-card mb-4">
+        <div class="card-header hms-card-header">
+          <i class="bi bi-layers me-2"></i>Extra Charge Decorators
+          <span class="badge bg-info ms-2 small">Decorator Pattern</span>
+        </div>
+        <div class="card-body p-4">
+
+          <p class="text-muted small mb-3">
+            Each ticked option <strong>wraps</strong> the bill with an additional charge
+            decorator, composing the final total dynamically.
+          </p>
+
+          <!-- Lab Test Decorator -->
+          <div class="border rounded p-3 mb-3 decorator-block" id="labBlock">
+            <div class="form-check mb-2">
+              <input class="form-check-input decorator-check" type="checkbox"
+                     name="add_lab_test" id="chkLab" value="1"
+                     onchange="toggleDecorator('labFields','chkLab'); recalcTotal()">
+              <label class="form-check-label fw-semibold" for="chkLab">
+                <i class="bi bi-eyedropper me-1 text-danger"></i>Lab Test Charges
+              </label>
+            </div>
+            <div class="row g-2 ps-3 decorator-fields" id="labFields" style="display:none">
+              <div class="col-md-6">
+                <label class="form-label small">Test Name</label>
+                <input type="text" name="lab_name" class="form-control form-control-sm hms-input"
+                       placeholder="e.g. CBC, LFTs, X-Ray" value="Lab Tests">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">Amount (PKR)</label>
+                <input type="number" name="lab_amount" id="labAmount"
+                       class="form-control form-control-sm hms-input decorator-amount"
+                       min="0" step="0.01" placeholder="0.00" oninput="recalcTotal()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Room Charge Decorator -->
+          <div class="border rounded p-3 mb-3 decorator-block" id="roomBlock">
+            <div class="form-check mb-2">
+              <input class="form-check-input decorator-check" type="checkbox"
+                     name="add_room_charge" id="chkRoom" value="1"
+                     onchange="toggleDecorator('roomFields','chkRoom'); recalcTotal()">
+              <label class="form-check-label fw-semibold" for="chkRoom">
+                <i class="bi bi-building me-1 text-primary"></i>Room / Ward Charges
+              </label>
+            </div>
+            <div class="row g-2 ps-3 decorator-fields" id="roomFields" style="display:none">
+              <div class="col-md-5">
+                <label class="form-label small">Room Type</label>
+                <select name="room_type" class="form-select form-select-sm hms-input">
+                  <option>General Ward</option>
+                  <option>Semi-Private Room</option>
+                  <option>Private Room</option>
+                  <option>VIP Suite</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Rate / Day (PKR)</label>
+                <input type="number" name="room_rate" id="roomRate"
+                       class="form-control form-control-sm hms-input decorator-amount"
+                       min="0" step="0.01" placeholder="0.00" oninput="recalcTotal()">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">Days</label>
+                <input type="number" name="room_days" id="roomDays"
+                       class="form-control form-control-sm hms-input"
+                       min="1" value="1" oninput="recalcTotal()">
+              </div>
+              <div class="col-md-2 d-flex align-items-end">
+                <small class="text-muted">
+                  Subtotal: PKR <span id="roomSubtotal">0.00</span>
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- ICU Fee Decorator -->
+          <div class="border rounded p-3 mb-3 decorator-block" id="icuBlock">
+            <div class="form-check mb-2">
+              <input class="form-check-input decorator-check" type="checkbox"
+                     name="add_icu_fee" id="chkICU" value="1"
+                     onchange="toggleDecorator('icuFields','chkICU'); recalcTotal()">
+              <label class="form-check-label fw-semibold" for="chkICU">
+                <i class="bi bi-heart-pulse me-1 text-danger"></i>ICU Charges
+              </label>
+            </div>
+            <div class="row g-2 ps-3 decorator-fields" id="icuFields" style="display:none">
+              <div class="col-md-4">
+                <label class="form-label small">Rate / Day (PKR)</label>
+                <input type="number" name="icu_rate" id="icuRate"
+                       class="form-control form-control-sm hms-input decorator-amount"
+                       min="0" step="0.01" placeholder="0.00" oninput="recalcTotal()">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Days</label>
+                <input type="number" name="icu_days" id="icuDays"
+                       class="form-control form-control-sm hms-input"
+                       min="1" value="1" oninput="recalcTotal()">
+              </div>
+              <div class="col-md-3 d-flex align-items-end">
+                <small class="text-muted">
+                  Subtotal: PKR <span id="icuSubtotal">0.00</span>
+                </small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Emergency Service Decorator -->
+          <div class="border rounded p-3 mb-3 decorator-block" id="emergencyBlock">
+            <div class="form-check mb-2">
+              <input class="form-check-input decorator-check" type="checkbox"
+                     name="add_emergency" id="chkEmergency" value="1"
+                     onchange="toggleDecorator('emergencyFields','chkEmergency'); recalcTotal()">
+              <label class="form-check-label fw-semibold" for="chkEmergency">
+                <i class="bi bi-exclamation-triangle me-1 text-warning"></i>Emergency Services
+              </label>
+            </div>
+            <div class="row g-2 ps-3 decorator-fields" id="emergencyFields" style="display:none">
+              <div class="col-md-4">
+                <label class="form-label small">Flat Fee (PKR)</label>
+                <input type="number" name="emergency_amount" id="emergencyAmount"
+                       class="form-control form-control-sm hms-input decorator-amount"
+                       min="0" step="0.01" placeholder="0.00" oninput="recalcTotal()">
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /card-body -->
+      </div><!-- /card -->
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-hms-primary px-4">
+          <i class="bi bi-receipt me-1"></i>Generate Advanced Bill
+        </button>
+        <a href="{{ url_for('billing.list_bills') }}" class="btn btn-outline-secondary">Cancel</a>
+        <a href="{{ url_for('billing.generate_bill') }}" class="btn btn-outline-info ms-auto">
+          <i class="bi bi-receipt-cutoff me-1"></i>Standard Bill
+        </a>
+      </div>
+
+    </form>
+  </div><!-- /col -->
+
+  <!-- ── Right col: live charge summary ────────────────────────── -->
+  <div class="col-lg-5">
+    <div class="card hms-card sticky-top" style="top: 1.5rem">
+      <div class="card-header hms-card-header">
+        <i class="bi bi-calculator me-2"></i>Live Charge Summary
+      </div>
+      <div class="card-body p-4">
+        <table class="table table-sm" id="summaryTable">
+          <thead class="table-light">
+            <tr><th>Charge</th><th class="text-end">PKR</th></tr>
+          </thead>
+          <tbody id="summaryBody">
+            <tr><td class="text-muted">No charges added yet.</td><td></td></tr>
+          </tbody>
+          <tfoot>
+            <tr class="table-dark fw-bold">
+              <td>Grand Total</td>
+              <td class="text-end" id="grandTotal">0.00</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <hr>
+        <div class="text-muted small">
+          <p class="mb-1"><strong>How it works (Decorator Pattern):</strong></p>
+          <ol class="ps-3 mb-0">
+            <li>A <code>BaseBill</code> holds the consultation fee.</li>
+            <li>Each ticked charge <em>wraps</em> the bill with a decorator.</li>
+            <li>The final <code>get_total()</code> sums all layers.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /row -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── Toggle decorator field visibility ───────────────────────────── */
+function toggleDecorator(fieldsId, checkId) {
+  const checked = document.getElementById(checkId).checked;
+  const fields  = document.getElementById(fieldsId);
+  fields.style.display = checked ? 'flex' : 'none';
+  const block = fields.closest('.decorator-block');
+  block.classList.toggle('border-primary', checked);
+}
+
+/* ── Re-calculate live total and update summary table ────────────── */
+function recalcTotal() {
+  const rows = [];
+  let grand  = 0;
+
+  /* Base */
+  const base = parseFloat(document.getElementById('baseAmount').value) || 0;
+  if (base > 0) { rows.push(['Consultation Fee', base]); grand += base; }
+
+  /* Lab */
+  if (document.getElementById('chkLab').checked) {
+    const v = parseFloat(document.getElementById('labAmount').value) || 0;
+    const n = document.querySelector('[name="lab_name"]').value || 'Lab Tests';
+    if (v > 0) { rows.push([`Lab Test — ${n}`, v]); grand += v; }
+  }
+
+  /* Room */
+  if (document.getElementById('chkRoom').checked) {
+    const rate = parseFloat(document.getElementById('roomRate').value) || 0;
+    const days = parseInt(document.getElementById('roomDays').value)   || 1;
+    const sub  = rate * days;
+    const type = document.querySelector('[name="room_type"]').value;
+    document.getElementById('roomSubtotal').textContent = sub.toFixed(2);
+    if (sub > 0) { rows.push([`Room — ${type} × ${days}d`, sub]); grand += sub; }
+  }
+
+  /* ICU */
+  if (document.getElementById('chkICU').checked) {
+    const rate = parseFloat(document.getElementById('icuRate').value) || 0;
+    const days = parseInt(document.getElementById('icuDays').value)   || 1;
+    const sub  = rate * days;
+    document.getElementById('icuSubtotal').textContent = sub.toFixed(2);
+    if (sub > 0) { rows.push([`ICU Charges × ${days}d`, sub]); grand += sub; }
+  }
+
+  /* Emergency */
+  if (document.getElementById('chkEmergency').checked) {
+    const v = parseFloat(document.getElementById('emergencyAmount').value) || 0;
+    if (v > 0) { rows.push(['Emergency Services', v]); grand += v; }
+  }
+
+  /* Update summary table */
+  const tbody = document.getElementById('summaryBody');
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td class="text-muted" colspan="2">No charges added yet.</td></tr>';
+  } else {
+    tbody.innerHTML = rows.map(([label, amt]) =>
+      `<tr><td>${label}</td><td class="text-end">${amt.toFixed(2)}</td></tr>`
+    ).join('');
+  }
+  document.getElementById('grandTotal').textContent = grand.toFixed(2);
+}
+
+/* Patient dropdown → reload to filter appointments */
+document.getElementById('patientSelect').addEventListener('change', function () {
+  const p = new URLSearchParams();
+  if (this.value) p.set('patient_id', this.value);
+  window.location.href = `${window.location.pathname}?${p.toString()}`;
+});
+
+recalcTotal();
+</script>
+{% endblock %}

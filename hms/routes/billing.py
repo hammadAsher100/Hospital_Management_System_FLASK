@@ -10,6 +10,12 @@ from flask_login import current_user, login_required
 from hms import db_operations
 from hms.utils import role_required
 
+# ── Design Pattern: Decorator ─────────────────────────────────────────────────
+# BillingDecoratorBuilder wraps a BaseBill with optional charge decorators
+# (LabTestDecorator, RoomChargeDecorator, ICUFeeDecorator,
+#  EmergencyServiceDecorator) and returns the composed total + item list.
+from hms.patterns.decorator import BillingDecoratorBuilder
+
 billing_bp = Blueprint('billing', __name__)
 
 
@@ -389,6 +395,116 @@ def patient_bills(patient_id):
 
     bills = [_map_bill(b) for b in db_operations.list_bills(patient_id=patient_id, skip=0, take=10000)]
     return render_template('billing/patient_bills.html', patient=patient, bills=bills)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Decorator Pattern — Advanced Bill Generation
+# ──────────────────────────────────────────────────────────────────────────────
+@billing_bp.route('/generate-advanced', methods=['GET', 'POST'])
+@login_required
+@role_required('admin', 'billing')
+def generate_advanced_bill():
+    """
+    **Decorator Pattern** — generates a bill by dynamically composing charge
+    decorators on top of a base consultation fee.
+
+    The staff member selects which extra services apply (lab test, room,
+    ICU, emergency).  ``BillingDecoratorBuilder`` chains the decorators and
+    returns the grand total + individual line items for persistence.
+    """
+    patients   = [_map_patient(p) for p in db_operations.list_patients(skip=0, take=10000)]
+    filter_pid = request.args.get('patient_id', type=int)
+    appointments = (
+        db_operations.list_completed_appointments(patient_id=filter_pid, skip=0, take=10000)
+        if filter_pid else []
+    )
+
+    if request.method == 'POST':
+        try:
+            patient_id     = int(request.form['patient_id'])
+            appointment_id = request.form.get('appointment_id') or None
+            payment_method = request.form.get('payment_method', '')
+            base_desc      = request.form.get('base_description', 'Consultation Fee').strip() or 'Consultation Fee'
+            base_amount    = float(request.form.get('base_amount', 0) or 0)
+
+            # ── Build decorator chain ──────────────────────────────────────
+            builder = BillingDecoratorBuilder(base_desc, base_amount)
+
+            # Lab test
+            if request.form.get('add_lab_test'):
+                lab_amount = float(request.form.get('lab_amount', 0) or 0)
+                lab_name   = request.form.get('lab_name', 'Lab Tests').strip() or 'Lab Tests'
+                if lab_amount > 0:
+                    builder.add_lab_test(lab_amount, lab_name)
+
+            # Room charges
+            if request.form.get('add_room_charge'):
+                room_rate = float(request.form.get('room_rate', 0) or 0)
+                room_type = request.form.get('room_type', 'General Ward').strip() or 'General Ward'
+                room_days = int(request.form.get('room_days', 1) or 1)
+                if room_rate > 0:
+                    builder.add_room_charge(room_rate, room_type, room_days)
+
+            # ICU fee
+            if request.form.get('add_icu_fee'):
+                icu_rate = float(request.form.get('icu_rate', 0) or 0)
+                icu_days = int(request.form.get('icu_days', 1) or 1)
+                if icu_rate > 0:
+                    builder.add_icu_fee(icu_rate, icu_days)
+
+            # Emergency service
+            if request.form.get('add_emergency'):
+                emergency_amount = float(request.form.get('emergency_amount', 0) or 0)
+                if emergency_amount > 0:
+                    builder.add_emergency_service(emergency_amount)
+
+            total_amount = builder.get_total()
+            bill_items   = builder.get_bill_items()   # list[dict]
+
+            if total_amount <= 0:
+                flash('Total bill amount must be greater than zero.', 'danger')
+                return redirect(url_for('billing.generate_advanced_bill'))
+
+            # ── Persist via existing db_operations ────────────────────────
+            bill_id = db_operations.create_bill(
+                patient_id=patient_id,
+                appointment_id=int(appointment_id) if appointment_id else None,
+                payment_method=payment_method,
+                total_amount=0,
+            )
+
+            for item in bill_items:
+                db_operations.add_bill_item(
+                    bill_id=bill_id,
+                    description=item['description'],
+                    quantity=item['quantity'],
+                    unit_price=item['unit_price'],
+                )
+
+            db_operations.refresh_bill_totals(bill_id)
+
+            charge_summary = builder.get_description().replace('\n', ' | ')
+            flash(
+                f'Advanced bill generated successfully! '
+                f'Total: PKR {total_amount:,.2f} — {charge_summary}',
+                'success',
+            )
+            return redirect(url_for('billing.view_bill', id=bill_id))
+
+        except Exception as exc:
+            flash(f'Error generating advanced bill: {exc}', 'danger')
+
+    preselect     = request.args.get('patient_id', type=int)
+    for appt in appointments:
+        if not hasattr(appt, 'patient'):
+            appt.patient = SimpleNamespace(full_name=getattr(appt, 'patient_full_name', ''))
+
+    return render_template(
+        'billing/generate_advanced.html',
+        patients=patients,
+        appointments=appointments,
+        preselect=preselect,
+    )
 
 
 @billing_bp.route('/export')
