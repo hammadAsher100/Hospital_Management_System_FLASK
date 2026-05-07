@@ -14,7 +14,7 @@
 
 <br/>
 
-> **A comprehensive, role-based Hospital Management System built with Flask & Microsoft SQL Server — designed to digitize, automate, and streamline hospital operations from patient intake to billing.**
+> **A comprehensive, role-based Hospital Management System built with Flask & Microsoft SQL Server, designed to digitize, automate, and streamline hospital operations from patient intake to billing.**
 
 <br/>
 
