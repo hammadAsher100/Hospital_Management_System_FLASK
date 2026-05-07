@@ -208,6 +208,23 @@ CREATE TABLE Prescription_Items (
 CREATE INDEX IX_PrescItems_pres ON Prescription_Items (prescription_id);
 GO
 
+-- ── Audit Log ─────────────────────────────────────────────────────
+CREATE TABLE Audit_Log (
+    log_id      INT IDENTITY(1,1) PRIMARY KEY,
+    table_name  NVARCHAR(50) NOT NULL,
+    operation   NVARCHAR(10) NOT NULL CHECK (operation IN ('INSERT', 'UPDATE', 'DELETE')),
+    record_id   INT          NOT NULL,
+    old_values  NVARCHAR(MAX) NULL,
+    new_values  NVARCHAR(MAX) NULL,
+    description NVARCHAR(MAX) NULL,
+    changed_by  NVARCHAR(100) NULL DEFAULT SYSTEM_USER,
+    changed_at  DATETIME DEFAULT GETDATE()
+);
+
+CREATE INDEX IX_AuditLog_table_operation ON Audit_Log (table_name, operation);
+CREATE INDEX IX_AuditLog_changed_at ON Audit_Log (changed_at DESC);
+GO
+
 -- ── Reporting Views ──────────────────────────────────────────────
 IF OBJECT_ID('dbo.ufn_CalculateAge', 'FN') IS NOT NULL
     DROP FUNCTION dbo.ufn_CalculateAge;
