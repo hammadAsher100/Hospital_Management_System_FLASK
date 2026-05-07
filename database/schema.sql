@@ -2178,5 +2178,162 @@ SELECT log_id, table_name, operation, record_id, description, changed_by, change
 FROM Audit_Log;
 GO
 
+-- ════════════════════════════════════════════════════════════════
+-- Admin Report Stored Procedures
+-- Used by admin.py report routes via db_operations.py
+-- ════════════════════════════════════════════════════════════════
+
+-- 1. Total patient count
+IF OBJECT_ID('dbo.usp_GetPatientCount', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetPatientCount;
+GO
+CREATE PROCEDURE dbo.usp_GetPatientCount
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT COUNT(*) AS total_count FROM Patients;
+END
+GO
+
+-- 2. Patient counts grouped by gender
+IF OBJECT_ID('dbo.usp_GetPatientGenderSummary', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetPatientGenderSummary;
+GO
+CREATE PROCEDURE dbo.usp_GetPatientGenderSummary
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT gender, COUNT(*) AS patient_count
+    FROM Patients
+    GROUP BY gender
+    ORDER BY patient_count DESC;
+END
+GO
+
+-- 3. Patient counts grouped by blood group
+IF OBJECT_ID('dbo.usp_GetPatientBloodGroupSummary', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetPatientBloodGroupSummary;
+GO
+CREATE PROCEDURE dbo.usp_GetPatientBloodGroupSummary
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT blood_group, COUNT(*) AS patient_count
+    FROM Patients
+    GROUP BY blood_group
+    ORDER BY patient_count DESC;
+END
+GO
+
+-- 4. Monthly patient registration counts (last N months)
+IF OBJECT_ID('dbo.usp_GetPatientMonthlyRegistrations', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetPatientMonthlyRegistrations;
+GO
+CREATE PROCEDURE dbo.usp_GetPatientMonthlyRegistrations
+    @limit INT = 12
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT TOP (@limit)
+        YEAR(registration_date) AS yr,
+        MONTH(registration_date) AS mo,
+        COUNT(*) AS cnt
+    FROM Patients
+    GROUP BY YEAR(registration_date), MONTH(registration_date)
+    ORDER BY yr DESC, mo DESC;
+END
+GO
+
+-- 5. Daily revenue trend from a start date
+IF OBJECT_ID('dbo.usp_GetRevenueTrendDaily', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetRevenueTrendDaily;
+GO
+CREATE PROCEDURE dbo.usp_GetRevenueTrendDaily
+    @start_date DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        CONVERT(NVARCHAR(10), CAST(bill_date AS DATE), 120) AS period,
+        SUM(total_amount) AS total,
+        SUM(paid_amount) AS paid
+    FROM Billing
+    WHERE bill_date >= @start_date
+    GROUP BY CAST(bill_date AS DATE)
+    ORDER BY CAST(bill_date AS DATE);
+END
+GO
+
+-- 6. Weekly revenue trend from a start date
+IF OBJECT_ID('dbo.usp_GetRevenueTrendWeekly', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetRevenueTrendWeekly;
+GO
+CREATE PROCEDURE dbo.usp_GetRevenueTrendWeekly
+    @start_date DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        CONCAT('W', DATEPART(ISO_WEEK, bill_date), ' ', YEAR(bill_date)) AS period,
+        SUM(total_amount) AS total,
+        SUM(paid_amount) AS paid
+    FROM Billing
+    WHERE bill_date >= @start_date
+    GROUP BY YEAR(bill_date), DATEPART(ISO_WEEK, bill_date)
+    ORDER BY YEAR(bill_date), DATEPART(ISO_WEEK, bill_date);
+END
+GO
+
+-- 7. Monthly revenue trend (last N months)
+IF OBJECT_ID('dbo.usp_GetRevenueTrendMonthly', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetRevenueTrendMonthly;
+GO
+CREATE PROCEDURE dbo.usp_GetRevenueTrendMonthly
+    @limit INT = 12
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT TOP (@limit)
+        YEAR(bill_date) AS yr,
+        MONTH(bill_date) AS mo,
+        SUM(total_amount) AS total,
+        SUM(paid_amount) AS paid
+    FROM Billing
+    GROUP BY YEAR(bill_date), MONTH(bill_date)
+    ORDER BY yr DESC, mo DESC;
+END
+GO
+
+-- 8. Revenue totals (all-time)
+IF OBJECT_ID('dbo.usp_GetRevenueTotals', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetRevenueTotals;
+GO
+CREATE PROCEDURE dbo.usp_GetRevenueTotals
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        ISNULL(SUM(total_amount), 0) AS total_revenue,
+        ISNULL(SUM(CASE WHEN status IN ('pending', 'partial') THEN total_amount - paid_amount ELSE 0 END), 0) AS total_pending
+    FROM Billing;
+END
+GO
+
+-- 9. Full medicine inventory ordered by stock quantity
+IF OBJECT_ID('dbo.usp_GetInventoryAll', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.usp_GetInventoryAll;
+GO
+CREATE PROCEDURE dbo.usp_GetInventoryAll
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        medicine_id, name, category, manufacturer,
+        unit_price, stock_quantity, reorder_level, expiry_date
+    FROM Medicines
+    ORDER BY stock_quantity ASC;
+END
+GO
+
 PRINT 'Schema created successfully. Run seed.sql next.';
 GO
