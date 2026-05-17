@@ -98,7 +98,7 @@
                     </div>
                     {% elif appointment.status == 'completed' %}
                     <div class="mt-4 pt-4 border-top d-flex gap-2">
-                        <a href="{{ url_for('billing.generate_bill', appointment_id=appointment.appointment_id) }}" class="btn btn-outline-warning">
+                        <a href="{{ url_for('billing.quick_generate_bill', appointment_id=appointment.appointment_id) }}" class="btn btn-outline-warning">
                             <i class="bi bi-receipt me-2"></i>Generate Bill
                         </a>
                     </div>

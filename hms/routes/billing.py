@@ -533,3 +533,63 @@ def export_bills():
         mimetype='text/csv',
         headers={'Content-Disposition': 'attachment; filename=bills_export.csv'},
     )
+
+@billing_bp.route('/quick-generate/<int:appointment_id>')
+@login_required
+@role_required('patient')
+def quick_generate_bill(appointment_id):
+    try:
+        appointment = db_operations.get_appointment_by_id(appointment_id)
+
+        if not appointment:
+            flash('Appointment not found.', 'danger')
+            return redirect(url_for('patients.my_appointments'))
+
+        patient = _get_current_patient()
+
+        if not patient or appointment.patient_id != patient.patient_id:
+            flash('Unauthorized access.', 'danger')
+            return redirect(url_for('patients.my_appointments'))
+
+        if appointment.status != 'completed':
+            flash('Bill can only be generated for completed appointments.', 'danger')
+            return redirect(url_for('patients.patient_view_appointment', id=appointment_id))
+
+        existing_bill = db_operations.get_bill_by_appointment_id(appointment_id)
+
+        if existing_bill:
+            return redirect(url_for('billing.view_bill', id=existing_bill.bill_id))
+
+        # Build automatic items
+        items = _build_patient_bill_items(appointment)
+
+        if not items:
+            flash('No billable items found.', 'warning')
+            return redirect(url_for('patients.patient_view_appointment', id=appointment_id))
+
+        # Create bill
+        bill_id = db_operations.create_bill(
+            patient_id=patient.patient_id,
+            appointment_id=appointment_id,
+            payment_method='',
+            total_amount=0,
+        )
+
+        # Add items
+        for item in items:
+            db_operations.add_bill_item(
+                bill_id=bill_id,
+                description=item['description'],
+                quantity=item['quantity'],
+                unit_price=item['unit_price'],
+            )
+
+        db_operations.refresh_bill_totals(bill_id)
+
+        flash('Bill generated successfully!', 'success')
+
+        return redirect(url_for('billing.view_bill', id=bill_id))
+
+    except Exception as e:
+        flash(f'Error generating bill: {str(e)}', 'danger')
+        return redirect(url_for('patients.patient_view_appointment', id=appointment_id))
