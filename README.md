@@ -244,24 +244,25 @@ python -m unittest -v tests.test_patterns
 
 | Module | Owner |
 |---|---|
-| Patient Management & Appointment Scheduling | Muhammad Hammad Asher *(Team Lead)* |
+| Reports, Analytics & Admin Dashboard | Muhammad Hammad Asher *(Team Lead)* |
+| Patient Management & Appointment Scheduling | Asma Azam |
+| Doctor & Staff Management | Alifya Shabbir |
 | Billing & Pharmacy Management | Aliza Ujan |
-| Reports, Analytics & Admin Dashboard | Alifya Shabbir |
-| Doctor & Staff Management | Asma Azam |
+
 
 ---
 
 ## 🛣️ Roadmap
 
 - [x] Project proposal & architecture design
-- [ ] Database schema design & normalization
-- [ ] Patient & appointment module
-- [ ] Doctor & staff module
-- [ ] Billing & pharmacy module
-- [ ] Admin dashboard & reports
-- [ ] Role-based authentication
-- [ ] Final integration & testing
-- [ ] Deployment
+- [x] Database schema design & normalization
+- [x] Patient & appointment module
+- [x] Doctor & staff module
+- [x] Billing & pharmacy module
+- [x] Admin dashboard & reports
+- [x] Role-based authentication
+- [x] Final integration & testing
+- [x] Deployment
 
 ---
 
@@ -274,7 +275,5 @@ This project is licensed under the [MIT License](LICENSE).
 <div align="center">
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=100&section=footer" width="100%"/>
-
-Made with ❤️ by [Muhammad Hammad Asher](https://linkedin.com/in/hammad-asher) & Team
 
 </div>
