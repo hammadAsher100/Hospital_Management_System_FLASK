@@ -1,22 +1,33 @@
+"""
+db_queries.py — low-level query helpers for psycopg2 (PostgreSQL).
+
+psycopg2 uses %s positional placeholders.
+Named :param style is converted automatically by _convert_named_params().
+"""
+
 import re
 from types import SimpleNamespace
 from hms import db
 
 
 def is_sql_server():
+    """Always False — we are on PostgreSQL."""
+    return False
+
+
+def is_postgres():
     return True
 
 
 def _convert_named_params(sql, params):
-    """Convert :name style parameters to ? positional style for pyodbc.
+    """Convert :name style parameters to %s positional style for psycopg2.
 
-    pyodbc does NOT support :name parameters — only ? placeholders.
-    This helper rewrites the SQL and returns an ordered tuple of values.
+    Returns (converted_sql, ordered_values_tuple_or_None).
+    If params is already a list/tuple it is returned unchanged.
     """
     if params is None:
         return sql, None
     if not isinstance(params, dict):
-        # Already positional (tuple/list) — leave as-is
         return sql, params
 
     ordered_values = []
@@ -24,18 +35,19 @@ def _convert_named_params(sql, params):
     def _replacer(match):
         name = match.group(1)
         ordered_values.append(params.get(name))
-        return "?"
+        return "%s"
 
     converted_sql = re.sub(r":(\w+)", _replacer, sql)
     return converted_sql, tuple(ordered_values) if ordered_values else None
 
 
 def fetch_rows(sql, params=None):
-    """Execute SELECT query and return list of dictionaries."""
+    """Execute a SELECT and return a list of dicts."""
+    import psycopg2.extras
     conn = None
     try:
         conn = db.get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         sql, params = _convert_named_params(sql, params)
         if params is not None:
             cursor.execute(sql, params)
@@ -46,12 +58,11 @@ def fetch_rows(sql, params=None):
             cursor.close()
             return []
 
-        columns = [column[0] for column in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        rows = [dict(row) for row in cursor.fetchall()]
         cursor.close()
         return rows
     except Exception as e:
-        print(f"Query Error: {str(e)}")
+        print(f"Query Error: {e}")
         raise
     finally:
         if conn:
@@ -59,17 +70,16 @@ def fetch_rows(sql, params=None):
 
 
 def exec_procedure(name, params=None):
-    """Execute stored procedure and return results."""
-    params = params or {}
-    if params:
-        placeholders = ", ".join(f"@{key}=?" for key in params.keys())
-        sql = f"EXEC {name} {placeholders}"
-        param_values = list(params.values())
-    else:
-        sql = f"EXEC {name}"
-        param_values = None
-    return fetch_rows(sql, param_values)
+    """Compatibility shim — not used on PostgreSQL (no stored procedures).
+    Raises NotImplementedError so callers know to use inline SQL instead.
+    """
+    raise NotImplementedError(
+        f"exec_procedure('{name}') called on PostgreSQL — use inline SQL via fetch_rows()."
+    )
 
 
 def rows_to_objects(rows):
-    return [SimpleNamespace(**dict(row)) if hasattr(row, '__dict__') else SimpleNamespace(**row) for row in rows]
+    return [
+        SimpleNamespace(**dict(row)) if not isinstance(row, dict) else SimpleNamespace(**row)
+        for row in rows
+    ]

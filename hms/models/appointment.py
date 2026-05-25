@@ -3,7 +3,7 @@
 from datetime import datetime, date, time, timedelta
 from types import SimpleNamespace
 from hms import db_operations
-from hms.db_queries import fetch_rows, exec_procedure, is_sql_server
+from hms.db_queries import fetch_rows, rows_to_objects
 from hms.utils.exceptions import ValidationError
 
 
@@ -73,35 +73,13 @@ class Appointment:
         if Appointment.has_conflict(doctor_id, appt_date, appt_time):
             raise ValidationError("This time slot is already booked. Please choose another.")
 
-        from hms import db
-        from hms.db_queries import _convert_named_params
-        conn = None
-        try:
-            conn = db.get_connection()
-            cursor = conn.cursor()
-            sql = """
-                INSERT INTO Appointments (patient_id,doctor_id,appointment_date,appointment_time,reason,status)
-                OUTPUT INSERTED.appointment_id AS id
-                VALUES (:patient_id,:doctor_id,:appointment_date,:appointment_time,:reason,'scheduled')
-            """
-            params = {
-                "patient_id": patient_id, "doctor_id": doctor_id,
-                "appointment_date": appt_date, "appointment_time": appt_time,
-                "reason": reason,
-            }
-            sql, params = _convert_named_params(sql, params)
-            cursor.execute(sql, params) if params else cursor.execute(sql)
-            row = cursor.fetchone()
-            conn.commit()
-            cursor.close()
-            return int(row[0]) if row else None
-        except Exception as e:
-            if conn:
-                conn.rollback()
-            raise ValidationError(f"Error booking appointment: {e}")
-        finally:
-            if conn:
-                conn.close()
+        appt_id = db_operations.create_appointment(
+            patient_id=patient_id, doctor_id=doctor_id,
+            appointment_date=appt_date, appointment_time=appt_time, reason=reason,
+        )
+        if not appt_id:
+            raise ValidationError("Failed to create appointment.")
+        return appt_id
 
     @staticmethod
     def book_by_staff(patient_id: int, doctor_id: int, date_str: str, time_str: str,
@@ -173,19 +151,9 @@ class Appointment:
     def has_conflict(doctor_id: int, appointment_date: date, appointment_time: time,
                      exclude_id: int = None) -> bool:
         """Check if appointment time slot has a conflict."""
-        if is_sql_server():
-            c = exec_procedure("dbo.usp_CheckAppointmentConflict", {
-                "doctor_id": doctor_id, "appointment_date": appointment_date,
-                "appointment_time": appointment_time, "exclude_id": exclude_id,
-            })
-            return bool(c and c[0]["has_conflict"])
-        else:
-            count = int(fetch_rows(
-                "SELECT COUNT(*) AS c FROM Appointments WHERE doctor_id=:d AND appointment_date=:ad "
-                "AND appointment_time=:at AND status='scheduled'",
-                {"d": doctor_id, "ad": appointment_date, "at": appointment_time},
-            )[0]["c"])
-            return count > 0
+        return db_operations.check_appointment_conflict(
+            doctor_id, appointment_date, appointment_time, exclude_id
+        )
 
     @staticmethod
     def get_available_slots(doctor_id: int, date_str: str):
@@ -264,12 +232,11 @@ class Appointment:
                 {"pid": patient_id, "today": today},
             )
         else:
-            tail = f"OFFSET 0 ROWS FETCH NEXT {limit} ROWS ONLY" if is_sql_server() else f"LIMIT {limit}"
             rows = fetch_rows(
                 _appointment_sql(
                     "a.patient_id = :pid AND a.appointment_date < :today",
                     "a.appointment_date DESC, a.appointment_time DESC",
-                    tail,
+                    f"LIMIT {limit}",
                 ),
                 {"pid": patient_id, "today": today},
             )
@@ -295,15 +262,15 @@ class Appointment:
         status_clause = "AND a.status = :status" if status_filter else ""
         count_params = {"pid": patient_id, "status": status_filter} if status_filter else {"pid": patient_id}
         total = int(fetch_rows(
-            f"SELECT COUNT(*) AS total FROM Appointments a WHERE a.patient_id=:pid {status_clause}",
+            f"SELECT COUNT(*) AS total FROM appointments a WHERE a.patient_id=:pid {status_clause}",
             count_params,
         )[0]["total"])
-        tail = "OFFSET :offset ROWS FETCH NEXT :limit ROWS ONLY" if is_sql_server() else "LIMIT :limit OFFSET :offset"
         page_params = {"pid": patient_id, "status": status_filter, "offset": offset, "limit": per_page} if status_filter \
             else {"pid": patient_id, "offset": offset, "limit": per_page}
         rows = fetch_rows(
             _appointment_sql(f"a.patient_id=:pid {status_clause}",
-                             "a.appointment_date DESC, a.appointment_time DESC", tail),
+                             "a.appointment_date DESC, a.appointment_time DESC",
+                             "LIMIT :limit OFFSET :offset"),
             page_params,
         )
         items = [_map_appointment_row(r) for r in rows]
@@ -320,15 +287,10 @@ class Appointment:
 def get_active_doctors():
     """Get active doctors for dropdowns."""
     from hms.db_queries import rows_to_objects
-    if is_sql_server():
-        return rows_to_objects(
-            fetch_rows("SELECT doctor_id, full_name, specialization, consultation_fee "
-                        "FROM dbo.vw_ActiveDoctors ORDER BY full_name")
-        )
     rows = fetch_rows(
         "SELECT d.doctor_id, d.first_name, d.last_name, d.specialization, d.consultation_fee "
-        "FROM Doctors d INNER JOIN Users u ON u.user_id = d.user_id "
-        "WHERE u.is_active = 1 AND (d.availability_status = 1 OR d.availability_status IS NULL) "
+        "FROM doctors d INNER JOIN users u ON u.user_id = d.user_id "
+        "WHERE u.is_active = TRUE AND (d.availability_status = TRUE OR d.availability_status IS NULL) "
         "ORDER BY d.last_name, d.first_name"
     )
     doctors = rows_to_objects(rows)
@@ -362,8 +324,7 @@ def _parse_dt(value):
 
 
 def _doctor_name_expr():
-    return "CONCAT('Dr. ', d.first_name, ' ', d.last_name)" if is_sql_server() \
-        else "('Dr. ' || d.first_name || ' ' || d.last_name)"
+    return "('Dr. ' || d.first_name || ' ' || d.last_name)"
 
 
 def _appointment_sql(where_sql, order_sql, tail=""):

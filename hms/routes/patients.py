@@ -7,7 +7,7 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 
 from hms import db, db_operations
-from hms.db_queries import exec_procedure, fetch_rows, is_sql_server, rows_to_objects
+from hms.db_queries import fetch_rows, rows_to_objects
 from hms.utils import role_required
 
 # ── Design Pattern: Chain of Responsibility ─────────────────────────────────────────
@@ -148,19 +148,18 @@ def list_patients():
     if search:
         search_param = f"%{search}%"
         total = int(fetch_rows(
-            "SELECT COUNT(*) AS total FROM Patients p "
-            "WHERE p.first_name LIKE ? OR p.last_name LIKE ? OR p.phone LIKE ? OR p.email LIKE ?",
+            "SELECT COUNT(*) AS total FROM patients p "
+            "WHERE p.first_name ILIKE %s OR p.last_name ILIKE %s OR p.phone ILIKE %s OR p.email ILIKE %s",
             (search_param, search_param, search_param, search_param)
         )[0]["total"])
-        # Use view to get full_name + age for search results
         rows = fetch_rows(
-            "SELECT p.*, CONCAT(p.first_name, ' ', p.last_name) AS full_name, "
-            "dbo.ufn_CalculateAge(p.dob) AS age "
-            "FROM Patients p "
-            "WHERE p.first_name LIKE ? OR p.last_name LIKE ? OR p.phone LIKE ? OR p.email LIKE ? "
+            "SELECT p.*, (p.first_name || ' ' || p.last_name) AS full_name, "
+            "DATE_PART('year', AGE(p.dob))::int AS age "
+            "FROM patients p "
+            "WHERE p.first_name ILIKE %s OR p.last_name ILIKE %s OR p.phone ILIKE %s OR p.email ILIKE %s "
             "ORDER BY p.registration_date DESC "
-            "OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",
-            (search_param, search_param, search_param, search_param, offset, per_page)
+            "LIMIT %s OFFSET %s",
+            (search_param, search_param, search_param, search_param, per_page, offset)
         )
         patients_raw = [SimpleNamespace(**dict(r)) for r in rows]
         for p in patients_raw:
@@ -168,8 +167,7 @@ def list_patients():
             p.registration_date = _parse_dt(p.registration_date)
             p.age = int(p.age) if hasattr(p, "age") and p.age is not None else _age_from_dob(p.dob)
     else:
-        # ── CHANGED: use usp_ListPatients stored procedure ──
-        total_rows = fetch_rows("SELECT COUNT(*) AS total FROM Patients")
+        total_rows = fetch_rows("SELECT COUNT(*) AS total FROM patients")
         total = int(total_rows[0]["total"]) if total_rows else 0
         raw_patients = db_operations.list_patients(skip=offset, take=per_page)
         patients_raw = []
@@ -306,14 +304,7 @@ def delete_patient(id):
     if not _get_patient_by_id(id):
         abort(404)
     try:
-        # NOTE: No stored procedure for delete was defined in schema.
-        # This stays as a direct query (cascades are handled by DB foreign keys).
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM Patients WHERE patient_id = ?", (id,))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        db_operations.delete_patient(id)
         flash("Patient record deleted.", "success")
     except Exception as e:
         flash(f"Cannot delete patient: {e}", "danger")

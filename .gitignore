@@ -5,6 +5,7 @@ venv/
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyc
 
 # IDE / Editor
 .vs/
@@ -17,7 +18,8 @@ __pycache__/
 Thumbs.db
 .DS_Store
 
-# Flask / SQLAlchemy leftovers
+# Flask leftovers
 instance/
 *.db
 *.sqlite3
+hms_local.db

@@ -84,26 +84,24 @@ def demo_chain_of_responsibility() -> None:
 def demo_singleton_db() -> None:
     print("\n=== Singleton Pattern Demo (Database) ===")
     try:
-        from config import get_db_connection_params
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
         from hms.patterns.singleton import DatabaseSingleton
 
-        params = get_db_connection_params() or {}
-        if not params or not params.get("server") or not params.get("database"):
-            print("Skipping: DB params not configured (missing server/database).")
+        db_url = os.environ.get('DATABASE_URL', '')
+        if not db_url:
+            print("Skipping: DATABASE_URL not configured in environment.")
             return
 
-        singleton = DatabaseSingleton.get_instance(params)
-        conn1 = singleton.get_connection()
-        conn2 = singleton.get_connection()
+        singleton = DatabaseSingleton.get_instance({})
+        conn = singleton.get_connection()
 
         print("Singleton instance:", singleton)
-        print("Same connection object:", conn1 is conn2)
-
-        # Do not close here — app code may rely on keeping it alive.
-        # Just do a cheap probe and return.
-        cursor = conn1.cursor()
+        cursor = conn.cursor()
         cursor.execute("SELECT 1")
         cursor.close()
+        conn.close()
         print("Connection probe OK (SELECT 1).")
     except Exception as exc:
         print(f"DB singleton demo could not run: {exc}")

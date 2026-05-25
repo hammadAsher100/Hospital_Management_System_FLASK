@@ -153,7 +153,7 @@ def signup():
             if not patient_id:
                 # Clean up orphan user to allow re-signup
                 db_operations.execute_update(
-                    "DELETE FROM Users WHERE user_id = ?", (user_id,)
+                    "DELETE FROM users WHERE user_id = %s", (user_id,)
                 )
                 flash('Error creating patient profile.', 'danger')
                 return render_template('auth/signup.html')
