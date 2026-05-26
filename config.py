@@ -28,3 +28,6 @@ config = {
     'production': ProductionConfig,
     'default': DevelopmentConfig,
 }
+
+# Demo accounts — protected from destructive actions on the live demo
+DEMO_USERNAMES = {"admin", "doctor", "nurse", "billing"}
