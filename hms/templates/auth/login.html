@@ -207,8 +207,7 @@
                         <tbody>
                             <tr><td>Administrator</td><td>admin</td><td>Admin@123</td></tr>
                             <tr><td>Doctor</td><td>doctor</td><td>Doctor@123</td></tr>
-                            <tr><td>Nurse</td><td>nurse</td><td>Nurse@123</td></tr>
-                            <tr><td>Billing Staff</td><td>billing</td><td>Billing@123</td></tr>
+                            <tr><td>Patient</td><td>pt_mkhan</td><td>PtKhan@123</td></tr>
                         </tbody>
                     </table>
                     <p class="demo-note">Click any row to auto-fill the form.</p>
@@ -263,7 +262,9 @@
             // Switch to correct module tab
             if (role === 'doctor') {
                 document.querySelector('[data-module="doctor"]').click();
-            } else if (role === 'administrator' || role === 'nurse' || role === 'billing staff') {
+            } else if (role === 'patient') {
+                document.querySelector('[data-module="patient"]').click();
+            } else {
                 document.querySelector('[data-module="staff"]').click();
             }
         });
