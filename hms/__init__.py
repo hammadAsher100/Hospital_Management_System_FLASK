@@ -116,7 +116,7 @@ else:  # pragma: no cover
     login_manager = None
 
 
-def create_app(config_name=None):
+def create_app(config_name=None, testing=False):
     if Flask is None:
         raise RuntimeError(
             "Flask is not installed. Install dependencies from requirements.txt."
@@ -124,12 +124,19 @@ def create_app(config_name=None):
 
     from config import config
 
-    if config_name is None:
-        env = os.environ.get('FLASK_ENV', '')
-        config_name = 'production' if env == 'production' else 'default'
-
-    app = Flask(__name__)
-    app.config.from_object(config[config_name])
+    if testing:
+        app = Flask(__name__)
+        app.config["TESTING"] = True
+        app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
+        app.config["WTF_CSRF_ENABLED"] = False
+        app.config["SECRET_KEY"] = "test-secret"
+        app.config["LOGIN_DISABLED"] = False
+    else:
+        if config_name is None:
+            env = os.environ.get('FLASK_ENV', '')
+            config_name = 'production' if env == 'production' else 'default'
+        app = Flask(__name__)
+        app.config.from_object(config[config_name])
 
     db.init_app(app)
 
