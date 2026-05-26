@@ -5,6 +5,7 @@
 
 <br/>
 
+![CI](https://github.com/hammadAsher100/Hospital_Management_System_FLASK/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=for-the-badge&logo=flask&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
@@ -111,6 +112,18 @@ The system follows a layered **MVC (Model-View-Controller)** architecture:
 | Frontend | HTML5, CSS3, JavaScript |
 | Auth | Flask-Login + bcrypt |
 | DB Driver | psycopg2 |
+
+---
+
+## 🗄️ Database Schema
+
+![ER Diagram](database/schema_diagram.png)
+
+Key relationships:
+- A **Patient** has many **Appointments**
+- An **Appointment** is linked to one **Doctor**
+- A **Prescription** is generated per Appointment and linked to **Pharmacy**
+- A **Billing** record is generated per Appointment with line-item breakdown
 
 ---
 
@@ -274,6 +287,22 @@ python -m unittest -v tests.test_patterns
 - [x] Role-based authentication
 - [x] Final integration & testing
 - [x] Deployment
+
+---
+
+## 📸 Screenshots
+
+### Admin Dashboard
+![Dashboard](docs/screenshots/dashboard.png)
+
+### Patient Management
+![Patients](docs/screenshots/patients.png)
+
+### Appointment Scheduling
+![Appointments](docs/screenshots/appointments.png)
+
+### Billing & Invoices
+![Billing](docs/screenshots/billing.png)
 
 ---
 
