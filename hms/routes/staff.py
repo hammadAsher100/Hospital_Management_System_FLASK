@@ -8,6 +8,7 @@ from flask_login import current_user, login_required
 from hms import db_operations
 from hms.models.user import User
 from hms.utils import admin_required, role_required
+from config import DEMO_USERNAMES
 
 staff_bp = Blueprint('staff', __name__)
 
@@ -195,6 +196,9 @@ def list_users():
 @login_required
 @admin_required
 def toggle_user(id):
+    if current_user.username in DEMO_USERNAMES:
+        flash("This action is disabled in the live demo.", "warning")
+        return redirect(request.referrer or url_for("staff.list_users"))
     user = db_operations.toggle_user_active(id)
     if not user:
         flash('User not found.', 'danger')

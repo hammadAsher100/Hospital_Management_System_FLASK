@@ -9,6 +9,7 @@ from flask_login import current_user, login_required
 from hms import db, db_operations
 from hms.db_queries import fetch_rows, rows_to_objects
 from hms.utils import role_required
+from config import DEMO_USERNAMES
 
 # ── Design Pattern: Chain of Responsibility ─────────────────────────────────────────
 # PatientRequestChain routes every new appointment through:
@@ -301,6 +302,9 @@ def edit_patient(id):
 @login_required
 @role_required("admin")
 def delete_patient(id):
+    if current_user.username in DEMO_USERNAMES:
+        flash("This action is disabled in the live demo.", "warning")
+        return redirect(request.referrer or url_for("admin.dashboard"))
     if not _get_patient_by_id(id):
         abort(404)
     try:
