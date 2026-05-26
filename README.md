@@ -7,20 +7,34 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=for-the-badge&logo=flask&logoColor=white)
-![SQL Server](https://img.shields.io/badge/SQL%20Server-CC2927?style=for-the-badge&logo=microsoftsqlserver&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)
 
 <br/>
 
-> **A comprehensive, role-based Hospital Management System built with Flask & Microsoft SQL Server, designed to digitize, automate, and streamline hospital operations from patient intake to billing.**
+> **A comprehensive, role-based Hospital Management System built with Flask & PostgreSQL, designed to digitize, automate, and streamline hospital operations from patient intake to billing.**
 
 <br/>
 
 [🚀 Features](#-features) · [🏗️ Architecture](#️-architecture) · [📁 Project Structure](#-project-structure) · [⚙️ Setup](#️-setup--installation) · [👥 Team](#-team)
 
 </div>
+
+---
+
+## 🌐 Live Demo
+
+**[https://hospital-management-system-flask.onrender.com](https://hospital-management-system-flask.onrender.com)**
+
+| Role | Username | Password |
+|---|---|---|
+| Administrator | `admin` | `Admin@123` |
+| Doctor | `dr_ahmed` | `DrAhmed@123` |
+| Patient | `pt_mkhan` | `PtKhan@123` |
+
+> ⚠️ Hosted on Render free tier — first load may take ~30 seconds to wake up.
 
 ---
 
@@ -82,7 +96,7 @@ The system follows a layered **MVC (Model-View-Controller)** architecture:
 └────────────────────────┬────────────────────────────────┘
                          │ ORM / Raw SQL
 ┌────────────────────────▼────────────────────────────────┐
-│           Microsoft SQL Server (Database)               │
+│              PostgreSQL Database (Render)               │
 │   Patients · Appointments · Staff · Billing · Pharmacy  │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -92,11 +106,11 @@ The system follows a layered **MVC (Model-View-Controller)** architecture:
 | Layer | Technology |
 |---|---|
 | Backend Framework | Flask (Python) |
-| Database | Microsoft SQL Server |
+| Database | PostgreSQL (Render) |
 | Templating | Jinja2 |
 | Frontend | HTML5, CSS3, JavaScript |
 | Auth | Flask-Login + bcrypt |
-| ORM / DB Driver | pyodbc / SQLAlchemy |
+| DB Driver | psycopg2 |
 
 ---
 
@@ -155,8 +169,7 @@ hospital-management-system/
 ### Prerequisites
 
 - Python 3.11+
-- Microsoft SQL Server (or SQL Server Express)
-- ODBC Driver 17/18 for SQL Server
+- PostgreSQL (or use the hosted Render database)
 
 ### 1. Clone the repository
 
@@ -185,20 +198,18 @@ pip install -r requirements.txt
 
 ### 4. Configure the database
 
-Edit `config.py` and set your SQL Server connection string:
+Create a `.env` file in the project root:
 
-```python
-SQLALCHEMY_DATABASE_URI = (
-    "mssql+pyodbc://USERNAME:PASSWORD@SERVER/HMS_DB"
-    "?driver=ODBC+Driver+17+for+SQL+Server"
-)
+```env
+SECRET_KEY=your-secret-key
+FLASK_ENV=development
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
 ```
 
-Then run the schema to initialize the database:
+Then initialize the database:
 
 ```bash
-sqlcmd -S YOUR_SERVER -d HMS_DB -i database/schema.sql
-sqlcmd -S YOUR_SERVER -d HMS_DB -i database/seed.sql
+python database/init_db.py
 ```
 
 ### 5. Run the application
