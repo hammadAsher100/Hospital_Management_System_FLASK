@@ -293,16 +293,16 @@ python -m unittest -v tests.test_patterns
 ## 📸 Screenshots
 
 ### Admin Dashboard
-![Dashboard](docs/screenshots/dashboard.png)
+![Dashboard](images/dashboard.png)
 
 ### Patient Management
-![Patients](docs/screenshots/patients.png)
+![Patients](images/Patient.png)
 
 ### Appointment Scheduling
-![Appointments](docs/screenshots/appointments.png)
+![Appointments](images/Appointment.png)
 
 ### Billing & Invoices
-![Billing](docs/screenshots/billing.png)
+![Billing](images/Billing.png)
 
 ---
 
