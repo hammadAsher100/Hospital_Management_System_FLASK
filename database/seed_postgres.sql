@@ -5,6 +5,7 @@
 -- ============================================================
 
 -- ── Users ─────────────────────────────────────────────────────
+-- Credentials: see comments at end of each line or bottom of file.
 INSERT INTO users (username, password_hash, role, email, full_name) VALUES
 ('admin',      '$2b$12$rRzT/HlU8BFzTyQ1LW.Hrec8nZ3cWwqWYy4oVKgp6tgpYqrXQCNYW', 'admin',   'admin@medicore.com',    'System Administrator'),
 ('dr_ahmed',   '$2b$12$LVEGBSMccyDQ6oVpr7M0Yug.EH55njhqpa1.QTvLtWlsWz3ddQJxy', 'doctor',  'ahmed@medicore.com',    'Dr. Salman Ahmed'),
@@ -18,6 +19,7 @@ INSERT INTO users (username, password_hash, role, email, full_name) VALUES
 ('pt_zainab',  '$2b$12$g8YJdcoSZcwR7gfaTj/GIe4x.eIoWGMa12jUIoph0thOQnVt8HEZe', 'patient', 'zainab@email.com',      'Zainab Ahmed');
 
 -- ── Doctors ───────────────────────────────────────────────────
+-- Each doctor row MUST reference a valid user_id with role='doctor'.
 INSERT INTO doctors (user_id, first_name, last_name, specialization, phone, email, consultation_fee, availability_status) VALUES
 (2, 'Salman',  'Ahmed',    'General Physician', '0300-1234567', 'ahmed@medicore.com',  1500.00, TRUE),
 (3, 'Fatima',  'Malik',    'Cardiologist',      '0301-2345678', 'fatima@medicore.com', 3000.00, TRUE),

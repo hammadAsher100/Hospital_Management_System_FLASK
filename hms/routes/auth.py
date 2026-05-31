@@ -46,6 +46,14 @@ def login():
                 flash('You do not have access to this module.', 'danger')
                 return render_template('auth/login.html')
             
+            # Defensive check: doctor-role users MUST have a doctors profile row.
+            # Without it, the doctor dashboard will fail with "profile not found".
+            if user.is_doctor():
+                doctor_profile = db_operations.get_doctor_by_user_id(user.user_id)
+                if not doctor_profile:
+                    flash('Your doctor profile is not set up. Please contact an administrator.', 'danger')
+                    return render_template('auth/login.html')
+
             login_user(user, remember=bool(remember))
             user.update_last_login()
             flash(f'Welcome back, {user.full_name}!', 'success')
